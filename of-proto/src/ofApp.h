@@ -24,12 +24,13 @@ class ofApp : public ofBaseApp{
 
 
 		bool should_grab;
-		int cam_width = 320;
-    	int cam_height = 240;
+		const int cam_width = 320;
+    	const int cam_height = 240;
 		ofImage input_img;
 		ofVideoGrabber video_grabber;
 		
 		ofFbo dots_fbo;
 		ofxCvColorImage	color_img;
-		ofxCvGrayscaleImage thresholded_img;
+		ofxCvGrayscaleImage thresholded_img_1;
+		ofxCvGrayscaleImage thresholded_img_2;
 };

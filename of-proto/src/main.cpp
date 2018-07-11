@@ -4,7 +4,7 @@
 //========================================================================
 int main( ){
 	ofApp * app = new ofApp();
-	ofSetupOpenGL(app->cam_width*2, app->cam_height*3, OF_WINDOW);			// <-------- setup the GL context
+	ofSetupOpenGL(app->cam_width, app->cam_height, OF_WINDOW);			// <-------- setup the GL context
 
 	// this kicks off the running of my app
 	// can be OF_WINDOW or OF_FULLSCREEN

@@ -11,26 +11,20 @@ class ofApp : public ofBaseApp{
 		void draw();
 
 		void keyPressed(int key);
-		void keyReleased(int key);
-		void mouseMoved(int x, int y );
-		void mouseDragged(int x, int y, int button);
-		void mousePressed(int x, int y, int button);
-		void mouseReleased(int x, int y, int button);
-		void mouseEntered(int x, int y);
-		void mouseExited(int x, int y);
-		void windowResized(int w, int h);
-		void dragEvent(ofDragInfo dragInfo);
-		void gotMessage(ofMessage msg);
 
-
-		bool should_grab;
+		bool button_pressed;
 		const int cam_width = 320;
     	const int cam_height = 240;
-		ofImage input_img;
+		const int circle_size = 4; // TODO: find biggest circle good for both width and height
 		ofVideoGrabber video_grabber;
 		
 		ofFbo dots_fbo;
 		ofxCvColorImage	color_img;
 		ofxCvGrayscaleImage thresholded_img_1;
 		ofxCvGrayscaleImage thresholded_img_2;
+		
+		// used to generate the code for the paintball guns
+		vector<glm::vec2> red_dots_positions; 
+		vector<glm::vec2> black_dots_positions;
+		void export_dots_to_csv(vector<glm::vec2> positions, std::string filename);
 };

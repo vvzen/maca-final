@@ -2,21 +2,24 @@
 
 #include "ofMain.h"
 #include "ofxOpenCv.h"
+#include "ofxPS3EyeGrabber.h"
 
 class ofApp : public ofBaseApp{
 
 	public:
-		void setup();
-		void update();
-		void draw();
+		void setup() override;
+		void update() override;
+		void draw() override;
 
-		void keyPressed(int key);
+		void keyPressed(int key) override;
 
 		bool button_pressed;
-		const int cam_width = 320;
-    	const int cam_height = 240;
+		bool show_live_feed;
+		const int cam_width = 640;
+    	const int cam_height = 480;
 		const int circle_size = 4; // TODO: find biggest circle good for both width and height
-		ofVideoGrabber video_grabber;
+		
+		std::shared_ptr<ofVideoGrabber> video_grabber;
 		
 		ofFbo dots_fbo;
 		ofxCvColorImage	color_img;

@@ -54,7 +54,7 @@ void ofApp::update(){
             thresholded_img_2 = color_img;
             thresholded_img_2.threshold(110);
 
-            // DOTS IMAGE
+            // create the DOTS IMAGE
             // convert the image to a matrix of dots
             dots_fbo.begin();
 
@@ -73,7 +73,8 @@ void ofApp::update(){
                     ofColor c = thresh_pixels_1.getColor(x, y);
                     
                     // take the color for the circle from the first thresholded image
-                    // if color is white then look at the other threholded image
+                    // if color is white then look at the other thresholded image
+                    // else use blue
                     if (c.getLightness() == 255){
 
                         c = thresh_pixels_2.getColor(x, y);
@@ -92,7 +93,7 @@ void ofApp::update(){
                             red_dots_positions.push_back(current_pos);
                         }
                     }
-                    // use black dots
+                    // use blue dots
                     else {
                         ofSetColor(ofColor::blue);
                         ofDrawCircle(x, y, circle_size);
@@ -116,9 +117,8 @@ void ofApp::draw(){
     // thresholded_img_2.draw(cam_width, 0);
     dots_fbo.draw(0, 0);
 
-    if (show_live_feed){
-        video_grabber->draw(0, 0, 320, 240);
-    }
+    // show the live feed is "s" is pressed
+    if (show_live_feed) video_grabber->draw(0, 0, 320, 240);
 
     std::stringstream ss;
 

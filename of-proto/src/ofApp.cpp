@@ -4,29 +4,17 @@
 void ofApp::setup(){
 
     button_pressed = false;
-
-    // get back a list of grabbing devices
-    vector<ofVideoDevice> devices = video_grabber.listDevices();
-
-    for (ofVideoDevice device : devices){
-        if(device.bAvailable){
-            // log the device
-            ofLogNotice() << device.id << " : " << device.deviceName << " - available";
-        }
-        else {
-            // log the device and note it as unavailable
-            ofLogNotice() << device.id << ": " << device.deviceName << " - unavailable ";
-        }
-    }
+    show_live_feed = false;
 
     ofLogNotice() << "circle size:" << circle_size;
     ofLogNotice() << "horizontal dots: " << cam_width / circle_size;
     ofLogNotice() << "vertical dots:   " << cam_height / circle_size;
 
-    // input video
-    video_grabber.setDeviceID(0);
-    video_grabber.setDesiredFrameRate(60);
-    video_grabber.initGrabber(cam_width, cam_height);
+    // Load the JSON with the video settings from a configuration file.
+    ofJson config = ofLoadJson("settings.json");
+
+    // Create a grabber from the JSON.
+    video_grabber = ofxPS3EyeGrabber::fromJSON(config);
 
     dots_fbo.allocate(cam_width, cam_height, GL_RGBA, 8);
 
@@ -44,28 +32,29 @@ void ofApp::update(){
 
     ofBackground(255);
     
-    video_grabber.update();
+    video_grabber->update();
 
-    if (video_grabber.isFrameNew()){
+    if (video_grabber->isFrameNew()){
 
         if (!button_pressed){
 
             red_dots_positions.clear();
             black_dots_positions.clear();
 
-            ofPixels & pixels = video_grabber.getPixels();
+            ofPixels & pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
 
             color_img.setFromPixels(pixels);
-            color_img.mirror(false, true);
 
             // threshold the image using two different levels
+            // blue dots
             thresholded_img_1 = color_img;
-            thresholded_img_1.threshold(60);
+            thresholded_img_1.threshold(80);
 
+            // red dots
             thresholded_img_2 = color_img;
-            thresholded_img_2.threshold(100);
+            thresholded_img_2.threshold(110);
 
-            // DOTS IMAGE
+            // create the DOTS IMAGE
             // convert the image to a matrix of dots
             dots_fbo.begin();
 
@@ -84,7 +73,8 @@ void ofApp::update(){
                     ofColor c = thresh_pixels_1.getColor(x, y);
                     
                     // take the color for the circle from the first thresholded image
-                    // if color is white then look at the other threholded image
+                    // if color is white then look at the other thresholded image
+                    // else use blue
                     if (c.getLightness() == 255){
 
                         c = thresh_pixels_2.getColor(x, y);
@@ -103,9 +93,9 @@ void ofApp::update(){
                             red_dots_positions.push_back(current_pos);
                         }
                     }
-                    // use black dots
+                    // use blue dots
                     else {
-                        ofSetColor(ofColor::black);
+                        ofSetColor(ofColor::blue);
                         ofDrawCircle(x, y, circle_size);
                         num_dots++;
                         glm::vec2 current_pos(x, y);
@@ -126,6 +116,18 @@ void ofApp::draw(){
     // thresholded_img_1.draw(0, 0);
     // thresholded_img_2.draw(cam_width, 0);
     dots_fbo.draw(0, 0);
+
+    // show the live feed is "s" is pressed
+    if (show_live_feed) video_grabber->draw(0, 0, 320, 240);
+
+    std::stringstream ss;
+
+    ss << " App FPS: " << ofGetFrameRate() << std::endl;
+    ss << " Cam FPS: " << video_grabber->getGrabber<ofxPS3EyeGrabber>()->getFPS() << std::endl;
+    ss << "Real FPS: " << video_grabber->getGrabber<ofxPS3EyeGrabber>()->getActualFPS() << std::endl;
+    ss << "      id: 0x" << ofToHex(video_grabber->getGrabber<ofxPS3EyeGrabber>()->getDeviceId());
+
+    ofDrawBitmapStringHighlight(ss.str(), ofPoint(10, 15));
 }
 
 //--------------------------------------------------------------
@@ -137,6 +139,7 @@ void ofApp::keyPressed(int key){
             export_dots_to_csv(black_dots_positions, "black_dots.csv");
         }
     }
+    else if (key == 's') show_live_feed = !show_live_feed;
 }
 
 //--------------------------------------------------------------

@@ -6,7 +6,7 @@
         {
             "label": "compile and run",
             "type": "shell",
-            "command": "OF_ROOT=/Users/vv/code/of/of_v0.10.0_osx_release make && OF_ROOT=/Users/vv/code/of/of_v0.10.0_osx_release make RunRelease",
+            "command": "OF_ROOT=/Volumes/LaCie3TBYas/Code/c++/of_v0.10.0_osx_release make && OF_ROOT=/Volumes/LaCie3TBYas/Code/c++/of_v0.10.0_osx_release make RunRelease",
             "group": {
                 "kind": "build",
                 "isDefault": true

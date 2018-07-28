@@ -19,6 +19,9 @@ class ofApp : public ofBaseApp{
     	const int cam_height = 480;
 		const int circle_size = 4; // TODO: find biggest circle good for both width and height
 		
+		// the video grabber for the PS3Eye Cam
+		// a shared_ptr avoids manual allocation of memory (new/delete)
+		// when the reference count of the pointed object reaches 0 memory is freed
 		std::shared_ptr<ofVideoGrabber> video_grabber;
 		
 		ofFbo dots_fbo;

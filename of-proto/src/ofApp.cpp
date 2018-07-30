@@ -1,7 +1,10 @@
 #include "ofApp.h"
+#include <sstream>
 
 //--------------------------------------------------------------
 void ofApp::setup(){
+
+    current_command_index = 0;
 
     button_pressed = false;
     show_live_feed = false;
@@ -147,13 +150,6 @@ void ofApp::draw(){
     ss << "      id: 0x" << ofToHex(video_grabber->getGrabber<ofxPS3EyeGrabber>()->getDeviceId());
 
     ofDrawBitmapStringHighlight(ss.str(), ofPoint(10, 15));
-
-    // draw serial messages on top right of the screen
-    if (serial_messages.size() > 6) serial_messages.pop_front();
-    for (auto &message: serial_messages){
-        ofSetColor(ofColor::white);
-        ofDrawBitmapStringHighlight(message.message, glm::vec2(cam_width - 100, 40));
-    }
 }
 
 //--------------------------------------------------------------
@@ -174,32 +170,75 @@ void ofApp::keyPressed(int key){
             // people pressed the red button, fun is coming!
             // 1. let's start by telling the arduino we're starting
 
-            // create a byte buffer
-            // ofx::IO::ByteBuffer buffer('M' + ofToString(x) + ',' + ofToString(y));
-
-            // send the byte buffer.
-            // ofx::IO::PacketSerialDevice will encode the buffer, send it to the
-            // receiver, and send a packet marker.
-            // device.send(buffer);
-
-            for (int i = 0; i < red_dots_positions.size(); i++){
-                
-                auto pos = red_dots_positions.at(i);
-
-                ofLogNotice() << ofToString(i);
-                    
-                ofx::IO::ByteBuffer buffer('M' + ofToString(pos.x) + ',' + ofToString(pos.y));
-                device.send(buffer);
-
-                // if (serial_messages.size() > 0){
-
-                //     // TODO: if the stuff we received is what we sent, send the next command
-                //     ofLogNotice() << "latest message from arduino: " << serial_messages.at(serial_messages.size()).message;
-                // }
-            }
+            /* send one command at a time using recursion instead of a loop
+            * goes like that:
+            * send the current message
+            * check for arduino response
+            * send next message
+            */
+            send_current_command(current_command_index);
         }
     }
     else if (key == 's') show_live_feed = !show_live_feed;
+}
+
+//--------------------------------------------------------------
+void ofApp::send_current_command(int i){
+
+    auto pos = red_dots_positions.at(i);
+
+    // Create a byte buffer.
+    // ofx::IO::ByteBuffer buffer('M' + ofToString(pos.x) + ',' + ofToString(pos.y));
+
+    std::ostringstream ss;
+    // add 3 leading zeros
+    ss << "MX" << std::setw(3) << std::setfill('0') << pos.x;
+    ss << "Y" << std::setfill('0') << pos.y;
+
+    sent_command = ss.str();
+
+    ofLogNotice() << "sending " << sent_command;
+
+    ofx::IO::ByteBuffer buffer(sent_command);
+
+    // Send the byte buffer.
+    // ofx::IO::PacketSerialDevice will encode the buffer, send it to the
+    // receiver, and send a packet marker.
+    device.send(buffer);
+
+    // check onSerialBuffer to see what happens after we sent a command
+}
+
+
+//--------------------------------------------------------------
+void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs& args){
+    
+    // Decoded serial packets will show up here.
+    received_command = args.buffer().toString();
+
+    ofLogNotice() << "received message: " << received_command;
+
+    // check if the received message is the one we sent
+    // if yes, then send the next message
+    
+    if (current_command_index <= red_dots_positions.size() - 1){
+        if (sent_command == received_command){
+            send_current_command(++current_command_index);
+        }
+    }
+    else {
+        ofLogNotice() << "sent all commands!";
+        current_command_index = 0;
+    }
+}
+
+//--------------------------------------------------------------
+void ofApp::onSerialError(const ofx::IO::SerialBufferErrorEventArgs& args){
+    // Errors and their corresponding buffer (if any) will show up here.
+    SerialMessage message;
+    message.message = args.buffer().toString();
+    message.exception = args.exception().displayText();
+    serial_messages.push_back(message);
 }
 
 //--------------------------------------------------------------
@@ -214,26 +253,4 @@ void ofApp::export_dots_to_csv(vector<glm::vec2> positions, std::string filename
     }
 
     csv_file << "end" << endl;
-}
-
-//--------------------------------------------------------------
-void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs& args){
-    
-    
-    // Decoded serial packets will show up here.
-    SerialMessage message;
-    message.message = args.buffer().toString();
-
-    ofLogNotice() << "received message: " << message.message;
-
-    serial_messages.push_back(message);
-}
-
-//--------------------------------------------------------------
-void ofApp::onSerialError(const ofx::IO::SerialBufferErrorEventArgs& args){
-    // Errors and their corresponding buffer (if any) will show up here.
-    SerialMessage message;
-    message.message = args.buffer().toString();
-    message.exception = args.exception().displayText();
-    serial_messages.push_back(message);
 }

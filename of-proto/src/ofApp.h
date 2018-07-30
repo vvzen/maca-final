@@ -45,10 +45,14 @@ class ofApp : public ofBaseApp{
 		// serial communication with arduino
 		const int BAUD_RATE = 115200;
 
+		void send_current_command(int i);
+		int current_command_index;
+		std::string sent_command, received_command;
+
 		void onSerialBuffer(const ofxIO::SerialBufferEventArgs& args);
     	void onSerialError(const ofxIO::SerialBufferErrorEventArgs& args);
 		ofxIO::PacketSerialDevice device;
-		
+
 		std::deque<SerialMessage> serial_messages;
 
 };

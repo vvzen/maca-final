@@ -3,6 +3,13 @@
 #include "ofMain.h"
 #include "ofxOpenCv.h"
 #include "ofxPS3EyeGrabber.h"
+#include "ofxSerial.h"
+
+struct SerialMessage{
+    std::string message;
+    std::string exception;
+};
+
 
 class ofApp : public ofBaseApp{
 
@@ -10,6 +17,7 @@ class ofApp : public ofBaseApp{
 		void setup() override;
 		void update() override;
 		void draw() override;
+		void exit() override;
 
 		void keyPressed(int key) override;
 
@@ -33,4 +41,14 @@ class ofApp : public ofBaseApp{
 		vector<glm::vec2> red_dots_positions; 
 		vector<glm::vec2> black_dots_positions;
 		void export_dots_to_csv(vector<glm::vec2> positions, std::string filename);
+
+		// serial communication with arduino
+		const int BAUD_RATE = 115200;
+
+		void onSerialBuffer(const ofxIO::SerialBufferEventArgs& args);
+    	void onSerialError(const ofxIO::SerialBufferErrorEventArgs& args);
+		ofxIO::PacketSerialDevice device;
+		
+		std::deque<SerialMessage> serial_messages;
+
 };

@@ -23,6 +23,25 @@ void ofApp::setup(){
     color_img.allocate(cam_width, cam_height);
     thresholded_img_1.allocate(cam_width, cam_height);
     thresholded_img_2.allocate(cam_width, cam_height);
+
+    // SERIAl
+    // connect to the arduino
+    std::vector<ofxIO::SerialDeviceInfo> devices_info = ofxIO::SerialDeviceUtils::listDevices();
+    if (!devices_info.empty()){
+        // connect to the first matching device
+        bool success = device.setup(devices_info[0], BAUD_RATE);
+        if (success){
+            device.registerAllEvents(this);
+            ofLogNotice("ofApp::setup") << "Successfully setup " << devices_info[0];
+        }
+        else {
+            ofLogError("ofApp::setup") << "Unable to setup " << devices_info[0];
+        }
+    }
+    else {
+        ofLogError("ofApp::setup") << "No devices connected";
+    }
+
     
     ofSetVerticalSync(true);
 }
@@ -105,7 +124,7 @@ void ofApp::update(){
             }
 
             dots_fbo.end();
-            ofLogNotice() << "num dots: " << num_dots;
+            // ofLogNotice() << "num dots: " << num_dots;
         }
     }
 }
@@ -128,15 +147,56 @@ void ofApp::draw(){
     ss << "      id: 0x" << ofToHex(video_grabber->getGrabber<ofxPS3EyeGrabber>()->getDeviceId());
 
     ofDrawBitmapStringHighlight(ss.str(), ofPoint(10, 15));
+
+    // draw serial messages on top right of the screen
+    if (serial_messages.size() > 6) serial_messages.pop_front();
+    for (auto &message: serial_messages){
+        ofSetColor(ofColor::white);
+        ofDrawBitmapStringHighlight(message.message, glm::vec2(cam_width - 100, 40));
+    }
+}
+
+//--------------------------------------------------------------
+void ofApp::exit(){
+    device.unregisterAllEvents(this);
 }
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
-    if (key == ' '){
+    if (key == 'b'){
         button_pressed = !button_pressed;
+        
         if (button_pressed){
-            export_dots_to_csv(red_dots_positions, "red_dots.csv");
-            export_dots_to_csv(black_dots_positions, "black_dots.csv");
+            // export_dots_to_csv(red_dots_positions, "red_dots.csv");
+            // export_dots_to_csv(black_dots_positions, "black_dots.csv");
+            ofLogNotice() << "button pressed!";
+
+            // people pressed the red button, fun is coming!
+            // 1. let's start by telling the arduino we're starting
+
+            // create a byte buffer
+            // ofx::IO::ByteBuffer buffer('M' + ofToString(x) + ',' + ofToString(y));
+
+            // send the byte buffer.
+            // ofx::IO::PacketSerialDevice will encode the buffer, send it to the
+            // receiver, and send a packet marker.
+            // device.send(buffer);
+
+            for (int i = 0; i < red_dots_positions.size(); i++){
+                
+                auto pos = red_dots_positions.at(i);
+
+                ofLogNotice() << ofToString(i);
+                    
+                ofx::IO::ByteBuffer buffer('M' + ofToString(pos.x) + ',' + ofToString(pos.y));
+                device.send(buffer);
+
+                // if (serial_messages.size() > 0){
+
+                //     // TODO: if the stuff we received is what we sent, send the next command
+                //     ofLogNotice() << "latest message from arduino: " << serial_messages.at(serial_messages.size()).message;
+                // }
+            }
         }
     }
     else if (key == 's') show_live_feed = !show_live_feed;
@@ -154,4 +214,26 @@ void ofApp::export_dots_to_csv(vector<glm::vec2> positions, std::string filename
     }
 
     csv_file << "end" << endl;
+}
+
+//--------------------------------------------------------------
+void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs& args){
+    
+    
+    // Decoded serial packets will show up here.
+    SerialMessage message;
+    message.message = args.buffer().toString();
+
+    ofLogNotice() << "received message: " << message.message;
+
+    serial_messages.push_back(message);
+}
+
+//--------------------------------------------------------------
+void ofApp::onSerialError(const ofx::IO::SerialBufferErrorEventArgs& args){
+    // Errors and their corresponding buffer (if any) will show up here.
+    SerialMessage message;
+    message.message = args.buffer().toString();
+    message.exception = args.exception().displayText();
+    serial_messages.push_back(message);
 }

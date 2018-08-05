@@ -6,7 +6,7 @@ endif
 
 # make sure the the OF_ROOT location is defined
 ifndef OF_ROOT
-	OF_ROOT=$(realpath ../../../c++/of_v0.10.0_osx_release/of/of_v0.10.0_osx_release/of/of_v0.10.0_osx_release/of/of_v0.10.0_osx_release/openframeworks/of_v0.10.0_osx_release)
+	OF_ROOT=$(realpath ../../../c++/of_v0.10.0_osx_release/c++/of_v0.10.0_osx_release/c++/of_v0.10.0_osx_release/c++/of_v0.10.0_osx_release/of/of_v0.10.0_osx_release/of/of_v0.10.0_osx_release/of/of_v0.10.0_osx_release/openframeworks/of_v0.10.0_osx_release)
 endif
 
 # call the project makefile!

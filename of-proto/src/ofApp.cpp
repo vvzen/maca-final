@@ -197,7 +197,7 @@ void ofApp::send_current_command(int i){
 
     sent_command = ss.str();
 
-    ofLogNotice() << "sending " << sent_command;
+    ofLogNotice() << "sending " << sent_command << ", " << current_command_index+1 << "/" << ofToString(red_dots_positions.size());
 
     ofx::IO::ByteBuffer buffer(sent_command);
 

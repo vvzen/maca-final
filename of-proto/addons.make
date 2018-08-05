@@ -1,3 +1,5 @@
+ofxCv
+ofxFaceTracker
 ofxIO
 ofxKinect
 ofxOpenCv

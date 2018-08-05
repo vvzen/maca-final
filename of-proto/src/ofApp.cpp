@@ -1,12 +1,15 @@
 #include "ofApp.h"
 #include <sstream>
 
+using namespace ofxCv;
+
 //--------------------------------------------------------------
 void ofApp::setup(){
 
     current_command_index = 0;
 
     button_pressed = false;
+    face_detected = false;
     show_live_feed = false;
 
     ofLogNotice() << "circle size:" << circle_size;
@@ -26,6 +29,10 @@ void ofApp::setup(){
     color_img.allocate(cam_width, cam_height);
     thresholded_img_1.allocate(cam_width, cam_height);
     thresholded_img_2.allocate(cam_width, cam_height);
+    img_for_tracker.allocate(cam_width, cam_height, OF_IMAGE_COLOR);
+
+    // FACE TRACKING
+    tracker.setup();
 
     // SERIAl
     // connect to the arduino
@@ -47,6 +54,7 @@ void ofApp::setup(){
 
     
     ofSetVerticalSync(true);
+    ofSetDrawBitmapMode(OF_BITMAPMODE_MODEL_BILLBOARD);
 }
 
 //--------------------------------------------------------------
@@ -58,14 +66,20 @@ void ofApp::update(){
 
     if (video_grabber->isFrameNew()){
 
-        if (!button_pressed){
+        // convert video grabber to ofImage and send it to the face tracker
+        ofPixels & grabber_pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
+        img_for_tracker.setFromPixels(grabber_pixels);
+        tracker.update(toCv(img_for_tracker));
+        
+        // update the tracked face position
+        tracked_face_position = tracker.getPosition();
+        
+        if (face_detected){
 
             red_dots_positions.clear();
             black_dots_positions.clear();
 
-            ofPixels & pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
-
-            color_img.setFromPixels(pixels);
+            color_img.setFromPixels(grabber_pixels);
 
             // threshold the image using two different levels
             // blue dots
@@ -89,39 +103,45 @@ void ofApp::update(){
             ofPixels thresh_pixels_1 = thresholded_img_1.getPixels();
             ofPixels thresh_pixels_2 = thresholded_img_2.getPixels();
 
+            int search_radius = 200;
+
             for (float x = circle_size/2; x < cam_width; x += circle_size*2){
                 for (float y = circle_size/2; y < cam_height; y += circle_size*2){
-                    
-                    ofColor c = thresh_pixels_1.getColor(x, y);
-                    
-                    // take the color for the circle from the first thresholded image
-                    // if color is white then look at the other thresholded image
-                    // else use blue
-                    if (c.getLightness() == 255){
 
-                        c = thresh_pixels_2.getColor(x, y);
+                    // only care for pixels close to the current tracked face
+                    if (ofDist(x, y, tracked_face_position.x, tracked_face_position.y) <= search_radius) {
 
-                        // if thresh pixels 2 are white then use white (which will be the bg)
+                        ofColor c = thresh_pixels_1.getColor(x, y);
+                    
+                        // take the color for the circle from the first thresholded image
+                        // if color is white then look at the other thresholded image
+                        // else use blue
                         if (c.getLightness() == 255){
-                            ofSetColor(ofColor::white);
-                            ofDrawCircle(x, y, circle_size);
+
+                            c = thresh_pixels_2.getColor(x, y);
+
+                            // if thresh pixels 2 are white then use white (which will be the bg)
+                            if (c.getLightness() == 255){
+                                ofSetColor(ofColor::white);
+                                ofDrawCircle(x, y, circle_size);
+                            }
+                            // otherwise use red dots
+                            else {
+                                ofSetColor(ofColor::red);
+                                ofDrawCircle(x, y, circle_size);
+                                num_dots++;
+                                glm::vec2 current_pos(x, y);
+                                red_dots_positions.push_back(current_pos);
+                            }
                         }
-                        // otherwise use red dots
+                        // use blue dots
                         else {
-                            ofSetColor(ofColor::red);
+                            ofSetColor(ofColor::blue);
                             ofDrawCircle(x, y, circle_size);
                             num_dots++;
                             glm::vec2 current_pos(x, y);
-                            red_dots_positions.push_back(current_pos);
+                            black_dots_positions.push_back(current_pos);
                         }
-                    }
-                    // use blue dots
-                    else {
-                        ofSetColor(ofColor::blue);
-                        ofDrawCircle(x, y, circle_size);
-                        num_dots++;
-                        glm::vec2 current_pos(x, y);
-                        black_dots_positions.push_back(current_pos);
                     }
                 }
             }
@@ -134,10 +154,42 @@ void ofApp::update(){
 
 //--------------------------------------------------------------
 void ofApp::draw(){
+
     //color_img.draw(cam_width, 0);
     // thresholded_img_1.draw(0, 0);
     // thresholded_img_2.draw(cam_width, 0);
-    dots_fbo.draw(0, 0);
+
+    img_for_tracker.draw(0, 0);
+    // video_grabber->draw(0, 0, 320, 240);
+
+    ofDrawBitmapString(ofToString((int) ofGetFrameRate()), 10, 20);
+        
+    if(tracker.getFound()) {
+
+        face_detected = true;
+
+        // ofSetLineWidth(1);
+        // tracker.draw();
+
+        dots_fbo.draw(0, 0);
+        
+        // ofSetupScreenOrtho(640, 480, -1000, 1000);
+        // ofTranslate(640 / 2, 480 / 2);
+        
+        // ofPushMatrix();
+        // ofScale(5,5,5);
+        // tracker.getObjectMesh().drawWireframe();
+        // ofPopMatrix();
+        
+        // applyMatrix(rotation_matrix);
+        // ofScale(5,5,5);
+        // tracker.getObjectMesh().drawWireframe();
+    }
+    else {
+        face_detected = false;
+    }
+
+    /* dots_fbo.draw(0, 0);
 
     // show the live feed is "s" is pressed
     if (show_live_feed) video_grabber->draw(0, 0, 320, 240);
@@ -149,7 +201,7 @@ void ofApp::draw(){
     ss << "Real FPS: " << video_grabber->getGrabber<ofxPS3EyeGrabber>()->getActualFPS() << std::endl;
     ss << "      id: 0x" << ofToHex(video_grabber->getGrabber<ofxPS3EyeGrabber>()->getDeviceId());
 
-    ofDrawBitmapStringHighlight(ss.str(), ofPoint(10, 15));
+    ofDrawBitmapStringHighlight(ss.str(), ofPoint(10, 15)); */
 }
 
 //--------------------------------------------------------------
@@ -159,6 +211,8 @@ void ofApp::exit(){
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
+
+    // FIXME: use smile detection instead of button press
     if (key == 'b'){
         button_pressed = !button_pressed;
         
@@ -179,7 +233,12 @@ void ofApp::keyPressed(int key){
             send_current_command(current_command_index);
         }
     }
-    else if (key == 's') show_live_feed = !show_live_feed;
+    else if (key == 's'){
+        show_live_feed = !show_live_feed;
+    }
+    else if(key == 'r') {
+		tracker.reset();
+	}
 }
 
 //--------------------------------------------------------------

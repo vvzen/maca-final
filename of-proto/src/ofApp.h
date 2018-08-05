@@ -4,6 +4,7 @@
 #include "ofxOpenCv.h"
 #include "ofxPS3EyeGrabber.h"
 #include "ofxSerial.h"
+#include "ofxFaceTracker.h"
 
 struct SerialMessage{
     std::string message;
@@ -25,13 +26,21 @@ class ofApp : public ofBaseApp{
 		bool show_live_feed;
 		const int cam_width = 640;
     	const int cam_height = 480;
-		const int circle_size = 4; // TODO: find biggest circle good for both width and height
+		const int circle_size = 2; // TODO: find biggest circle good for both width and height
 		
 		// the video grabber for the PS3Eye Cam
 		// a shared_ptr avoids manual allocation of memory (new/delete)
 		// when the reference count of the pointed object reaches 0 memory is freed
 		std::shared_ptr<ofVideoGrabber> video_grabber;
-		
+
+		// FACE TRACKING
+		ofImage img_for_tracker;
+		ofxFaceTracker tracker;
+		// ofVec2f tracked_face_position;
+		glm::vec2 tracked_face_position;
+		bool face_detected;
+
+		// DOTS
 		ofFbo dots_fbo;
 		ofxCvColorImage	color_img;
 		ofxCvGrayscaleImage thresholded_img_1;

@@ -60,6 +60,7 @@ void remove_first_element(uint8_t* buffer, size_t size){
     size_t i = 0;
     while (i < size - 1){
       buffer[i] == buffer[i+1];
+      i++;
     }
   }
 }

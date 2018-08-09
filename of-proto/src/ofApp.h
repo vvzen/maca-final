@@ -47,7 +47,7 @@ class ofApp : public ofBaseApp{
 		ofxFaceTracker tracker;
 		glm::vec2 tracked_face_position;
 		bool face_detected, update_servo;
-		const int FACE_DISTANCE_THRESHOLD = 20;
+		const int FACE_DISTANCE_THRESHOLD = 10;
 
 		// DOTS
 		ofFbo dots_fbo;
@@ -76,5 +76,5 @@ class ofApp : public ofBaseApp{
 		bool send_servo_start_command;
 		unsigned int seconds_elapsed;
 		const int SERVO_START_POSITION = 80;
-		const short SERVO_UPDATE_DELAY = 1; // seconds to wait before moving the servo again
+		const short SERVO_UPDATE_DELAY = 2; // seconds to wait before moving the servo again
 };

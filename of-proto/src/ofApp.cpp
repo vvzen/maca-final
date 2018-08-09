@@ -89,8 +89,8 @@ void ofApp::update(){
 
     ofBackground(255);
 
-    seconds_elapsed = floor(ofGetElapsedTimef()) + 1;
-    if (seconds_elapsed > 60) seconds_elapsed = 1; // I don't need the actual amount, but just the timing
+    seconds_elapsed = (int) (floor(ofGetElapsedTimef()) + 1) % 60; // I don't need the actual amount, but just the timing
+    
     ofLogNotice() << "seconds elapsed: " << seconds_elapsed;
 
     // wait 10 seconds and send the first command to the servo

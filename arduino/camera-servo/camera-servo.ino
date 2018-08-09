@@ -1,78 +1,75 @@
-#include <PacketSerial.h>
+// PacketSerial.h library by Christopher Baker <https://christopherbaker.net>
+// SPDX-License-Identifier:  MIT
+//
+
+
+#include <PacketSerial.h> // bakercp library for sending packets of data over serial
 #include <Servo.h>
 
-PacketSerial packet_serial;
+
+SLIPPacketSerial packet_serial;
 Servo servo;
+
 const int SERVO_PIN = 9;
 
-void setup() {
+void setup(){
   
+  // We begin communication with our PacketSerial object by setting the
+  // communication speed in bits / second (baud).
   packet_serial.begin(115200);
-  packet_serial.setPacketHandler(&on_packet_received);
+
+  // If we want to receive packets, we must specify a packet handler function.
+  // The packet handler is a custom function with a signature like the
+  // onPacketReceived function below.
+  packet_serial.setPacketHandler(&onPacketReceived);
 
   servo.attach(SERVO_PIN);
+  delay(100);
 }
 
-void loop() {
-  
+
+void loop(){
+
   // The PacketSerial::update() method attempts to read in any incoming serial
   // data and emits received and decoded packets via the packet handler
-  // function specified by the user in the void setup() function.
+  // function specified by the user in the void setup() function
   packet_serial.update();
 }
-
 
 // This is our handler callback function.
 // When an encoded packet is received and decoded, it will be delivered here.
 // The `buffer` is a pointer to the decoded byte array. `size` is the number of
 // bytes in the `buffer`.
-void on_packet_received(const uint8_t * buff, size_t buff_size){
-
-  // make a temporary buffer
-  uint8_t temp_buffer [buff_size];
-
-  // copy the received packet into our buffer
-  memcpy(temp_buffer, buff, buff_size);
-
-  //reverse(temp_buffer, buff_size);
-  delay(500);
-
-  if (temp_buffer[0] ==  's'){
-    manage_servo_command(&temp_buffer, buff_size);
-  }
-
-  // received buffer will be like that: 10
-  int angle = atoi(buff);
+void onPacketReceived(const uint8_t* buffer, size_t b_size){
   
-  servo.write(angle);
+  // Make a temporary buffer.
+  uint8_t temp_buffer[b_size];
+  uint8_t * ptr;
+  ptr = temp_buffer;
 
-  // print it
-//   for (uint8_t i = 0; i < buff_size; i++){
-//     packet_serial.send(temp_buffer, buff_size);
-//   }
-}
+  // Copy the packet into our temporary buffer.
+  memcpy(temp_buffer, buffer, b_size);
 
-// TODO:
-void remove_first_element(uint8_t* buffer, size_t size){
+  // check if it's a message for the servo
+  if ((char) temp_buffer[0] == 's'){
 
-  if (buffer[0] == 's'){
+    // skip first element (the 's')
+    // this is done by incrementing the pointer
+    ptr++;
 
-    size_t i = 0;
-    while (i < size - 1){
-      buffer[i] == buffer[i+1];
-      i++;
-    }
+    // now convert the char array to an integer (ie: from {'8, '0'} to 80 ) in order to get the angle
+    // see https://stackoverflow.com/questions/10204471/convert-char-array-to-a-int-number-in-c
+    int angle;
+    sscanf(ptr, "%d", &angle);
+    
+
+    char message[] = "received angle message";
+    packet_serial.send(message, sizeof(message));
+    packet_serial.send(ptr, b_size-1);
+
+    servo.write(angle);
+
+    delay(100);
   }
 }
 
-// This function takes a byte buffer and reverses it.
-void reverse(uint8_t* buffer, size_t size){
-
-  uint8_t tmp;
-
-  for (size_t i = 0; i < size / 2; i++){
-    tmp = buffer[i];
-    buffer[i] = buffer[size - i - 1];
-    buffer[size - i - 1] = tmp;
-  }
-}

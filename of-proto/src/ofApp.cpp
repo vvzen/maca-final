@@ -8,6 +8,8 @@ void ofApp::setup(){
 
     current_command_index = 0;
 
+    update_servo = true;
+    send_servo_start_command = true;
     button_pressed = false;
     face_detected = false;
     show_live_feed = false;
@@ -15,6 +17,11 @@ void ofApp::setup(){
     ofLogNotice() << "circle size:" << circle_size;
     ofLogNotice() << "horizontal dots: " << cam_width / circle_size;
     ofLogNotice() << "vertical dots:   " << cam_height / circle_size;
+
+    // GUI
+    gui.setup();
+    gui.add(gui_servo_angle.set("servo angle", 10, 10, 90));
+    gui_servo_angle.addListener(this, &ofApp::on_servo_angle_changed);
 
     // Load the JSON with the video settings from a configuration file.
     ofJson config = ofLoadJson("settings.json");
@@ -35,8 +42,29 @@ void ofApp::setup(){
     tracker.setup();
 
     // SERIAl
-    // connect to the arduino
+    // camera servo
     std::vector<ofxIO::SerialDeviceInfo> devices_info = ofxIO::SerialDeviceUtils::listDevices();
+    ofLogNotice("ofApp::setup") << "Connected Devices: ";
+
+    for (std::size_t i = 0; i < devices_info.size(); ++i){
+        ofLogNotice("ofApp::setup") << "\t" << devices_info[i];
+    }
+
+    if (!devices_info.empty()){
+
+        // Connect to the first matching device.
+        bool success = servo_cam_serial_device.setup(devices_info[0], BAUD_RATE);
+
+        if (success){
+            servo_cam_serial_device.registerAllEvents(this);
+            ofLogNotice("ofApp::setup") << "Successfully setup " << devices_info[0];
+        }
+        else ofLogNotice("ofApp::setup") << "Unable to setup " << devices_info[0];
+    }
+    else ofLogNotice("ofApp::setup") << "No devices connected.";
+
+    // cnc machine: connect to the arduino
+    /* std::vector<ofxIO::SerialDeviceInfo> devices_info = ofxIO::SerialDeviceUtils::listDevices();
     if (!devices_info.empty()){
         // connect to the first matching device
         bool success = device.setup(devices_info[0], BAUD_RATE);
@@ -49,10 +77,9 @@ void ofApp::setup(){
         }
     }
     else {
-        ofLogError("ofApp::setup") << "No devices connected";
-    }
+        ofLogError("ofApp::setup") << "No devices connected";   
+    } */
 
-    
     ofSetVerticalSync(true);
     ofSetDrawBitmapMode(OF_BITMAPMODE_MODEL_BILLBOARD);
 }
@@ -61,7 +88,27 @@ void ofApp::setup(){
 void ofApp::update(){
 
     ofBackground(255);
-    
+
+    seconds_elapsed = floor(ofGetElapsedTimef()) + 1;
+    ofLogNotice() << "seconds elapsed: " << seconds_elapsed;
+
+    // wait 10 seconds and send the first command to the servo
+    if ((seconds_elapsed % 8 == 0) && send_servo_start_command){
+        
+        gui_servo_angle = SERVO_START_POSITION;
+        
+        std::stringstream servo_start_command;
+        servo_start_command << 's' << ofToString(gui_servo_angle);
+        
+        ofxIO::ByteBuffer buffer(servo_start_command.str());
+        servo_cam_serial_device.send(buffer);
+        
+        ofLogNotice() << "SERVO START COMMAND";
+
+        send_servo_start_command = false;
+    }
+
+    // VIDEO
     video_grabber->update();
 
     if (video_grabber->isFrameNew()){
@@ -160,38 +207,74 @@ void ofApp::draw(){
     // thresholded_img_2.draw(cam_width, 0);
 
     img_for_tracker.draw(0, 0);
-    // video_grabber->draw(0, 0, 320, 240);
 
-    ofDrawBitmapString(ofToString((int) ofGetFrameRate()), 10, 20);
-        
+    ofDrawBitmapStringHighlight("elapsed seconds: " + ofToString(seconds_elapsed), ofPoint(300, 60));
+
+    gui.draw();
+
+    ofDrawBitmapString(ofToString((int) ofGetFrameRate()), 100, 20);
+    
+    // if a face is detected
     if(tracker.getFound()) {
 
         face_detected = true;
 
-        // ofSetLineWidth(1);
-        // tracker.draw();
+        ofSetColor(255);
+        ofNoFill();
+        
+        int width = 200;
+        int height = 200;
 
-        dots_fbo.draw(0, 0);
+        ofDrawRectangle(tracked_face_position.x-width/2, tracked_face_position.y-height/2, width, height);
         
-        // ofSetupScreenOrtho(640, 480, -1000, 1000);
-        // ofTranslate(640 / 2, 480 / 2);
-        
-        // ofPushMatrix();
-        // ofScale(5,5,5);
-        // tracker.getObjectMesh().drawWireframe();
-        // ofPopMatrix();
-        
-        // applyMatrix(rotation_matrix);
-        // ofScale(5,5,5);
-        // tracker.getObjectMesh().drawWireframe();
+        glm::vec2 screen_center = glm::vec2(ofGetWidth()/2, ofGetHeight()/2);
+
+        float current_distance = tracked_face_position.y - screen_center.y;
+
+        ofDrawLine(tracked_face_position, screen_center);
+
+        ofDrawBitmapStringHighlight("face position: " + ofToString(tracked_face_position), ofPoint(300, 15));
+        // ofDrawBitmapStringHighlight("required angle: " + ofToString(required_angle), ofPoint(300, 30));
+        ofDrawBitmapStringHighlight("current distance: " + ofToString(current_distance), ofPoint(300, 45));
+
+        // every 2 seconds, but first wait to have moved the servo for the first time
+        if (seconds_elapsed % SERVO_UPDATE_DELAY == 0 && update_servo && !send_servo_start_command){
+
+            cout << "HERE!\t" << "update servo: " << update_servo << endl;
+            
+            // if the face is too distant from the center
+            if (abs(current_distance) >= FACE_DISTANCE_THRESHOLD){
+                bool is_negative = current_distance < 0;
+                
+                if (is_negative){
+                    // increase current angle
+                    gui_servo_angle += 2;
+                }
+                else {
+                    // decrease current angle
+                    gui_servo_angle -= 2;
+                }
+
+                // prepend an s to the command (ie: s40)
+                stringstream ss;
+                ss << "s" << gui_servo_angle;
+                ofxIO::ByteBuffer servo_command(ss.str());
+                ofLogNotice() << "sending " << ss.str();
+                servo_cam_serial_device.send(servo_command);
+            }
+            update_servo = false;
+        }
     }
     else {
         face_detected = false;
     }
 
+    // we want to update the servo only 1 time every 2 seconds, not 60 times every 2 seconds
+    if (seconds_elapsed % SERVO_UPDATE_DELAY == 1) update_servo = true;
+
     /* dots_fbo.draw(0, 0);
 
-    // show the live feed is "s" is pressed
+    // show the live feed if "s" is pressed
     if (show_live_feed) video_grabber->draw(0, 0, 320, 240);
 
     std::stringstream ss;
@@ -206,39 +289,90 @@ void ofApp::draw(){
 
 //--------------------------------------------------------------
 void ofApp::exit(){
-    device.unregisterAllEvents(this);
+    servo_cam_serial_device.unregisterAllEvents(this);
 }
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
 
     // FIXME: use smile detection instead of button press
-    if (key == 'b'){
-        button_pressed = !button_pressed;
-        
-        if (button_pressed){
-            // export_dots_to_csv(red_dots_positions, "red_dots.csv");
-            // export_dots_to_csv(black_dots_positions, "black_dots.csv");
-            ofLogNotice() << "button pressed!";
+    switch(key){
+        case 'b':{
+            button_pressed = !button_pressed;
 
-            // people pressed the red button, fun is coming!
-            // 1. let's start by telling the arduino we're starting
+            if (button_pressed){
+                // export_dots_to_csv(red_dots_positions, "red_dots.csv");
+                // export_dots_to_csv(black_dots_positions, "black_dots.csv");
+                ofLogNotice() << "button pressed!";
 
-            /* send one command at a time using recursion instead of a loop
-            * goes like that:
-            * send the current message
-            * check for arduino response
-            * send next message
-            */
-            send_current_command(current_command_index);
+                // people pressed the red button, fun is coming!
+                // 1. let's start by telling the arduino we're starting
+
+                /* send one command at a time using recursion instead of a loop
+                * goes like that:
+                * send the current message
+                * check for arduino response
+                * send next message
+                */
+                // send_current_command(current_command_index);
+            }
+            break;
+        }
+        // case 's':{
+        //     show_live_feed = !show_live_feed;
+        //     break;
+        // }
+        case 'r': {
+            tracker.reset();
+            break;
+        }
+        case 'a': {
+            // Create a byte buffer.
+            ofxIO::ByteBuffer buffer("s56");
+            ofLogNotice() << "sending s56";
+            
+            gui_servo_angle = 56;
+            servo_cam_serial_device.send(buffer);
+            break;
+        }
+        case 's': {
+            // Create a byte buffer.
+            ofxIO::ByteBuffer buffer("s60");
+            ofLogNotice() << "sending s60";
+            gui_servo_angle = 60;
+            servo_cam_serial_device.send(buffer);
+            break;
+        }
+        case 'd': {
+            // Create a byte buffer.
+            ofxIO::ByteBuffer buffer("s64");
+            ofLogNotice() << "sending s64";
+            servo_cam_serial_device.send(buffer);
+            break;
+        }
+        case 'f': {
+            // Create a byte buffer.
+            ofxIO::ByteBuffer buffer("s68");
+            ofLogNotice() << "sending s68";
+            servo_cam_serial_device.send(buffer);
+            break;
+        }
+        case 'g': {
+            // Create a byte buffer.
+            ofxIO::ByteBuffer buffer("s72");
+            ofLogNotice() << "sending s72";
+            servo_cam_serial_device.send(buffer);
+            break;
+        }
+        case 'h': {
+            // Create a byte buffer.
+            ofxIO::ByteBuffer buffer("s76");
+            ofLogNotice() << "sending s76";
+            servo_cam_serial_device.send(buffer);
+            break;
         }
     }
-    else if (key == 's'){
-        show_live_feed = !show_live_feed;
-    }
-    else if(key == 'r') {
-		tracker.reset();
-	}
+    
 }
 
 //--------------------------------------------------------------
@@ -263,11 +397,21 @@ void ofApp::send_current_command(int i){
     // Send the byte buffer.
     // ofx::IO::PacketSerialDevice will encode the buffer, send it to the
     // receiver, and send a packet marker.
-    device.send(buffer);
+    // device.send(buffer);
 
     // check onSerialBuffer to see what happens after we sent a command
 }
 
+//--------------------------------------------------------------
+void ofApp::on_servo_angle_changed(int & servo_angle){
+
+    // std::stringstream servo_command;
+    // servo_command << "s" << servo_angle;
+
+    // ofxIO::ByteBuffer buffer(servo_command.str());
+    // ofLogNotice() << "sending " << servo_command.str();
+    // servo_cam_serial_device.send(buffer);
+}
 
 //--------------------------------------------------------------
 void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs& args){
@@ -280,7 +424,7 @@ void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs& args){
     // check if the received message is the one we sent
     // if yes, then send the next message
     
-    if (current_command_index <= red_dots_positions.size() - 1){
+    /* if (current_command_index <= red_dots_positions.size() - 1){
         if (sent_command == received_command){
             send_current_command(++current_command_index);
         }
@@ -288,7 +432,7 @@ void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs& args){
     else {
         ofLogNotice() << "sent all commands!";
         current_command_index = 0;
-    }
+    } */
 }
 
 //--------------------------------------------------------------

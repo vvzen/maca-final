@@ -20,7 +20,7 @@ You can either run the `setup.py` or manually download each addon and put it in 
 
 #### Using setup.py
 
-1. Before running the `setup.py` file, open it with a text editor and set the `OF_ROOT` variable to your openframeworks installation folder. In my case, it is `/Volumes/LaCie3TBYas/Code/c++/of_v0.10.0_osx_release` so I will change it like this:
+1. Open the `setup.py` with a text editor and set the `OF_ROOT` variable to your openframeworks installation folder. In my case, it is `/Volumes/LaCie3TBYas/Code/c++/of_v0.10.0_osx_release` so I will change it like this:
 `OF_ROOT="/Volumes/LaCie3TBYas/Code/c++/of_v0.10.0_osx_release"`
 
 1. open a terminal window and `cd` into the main folder of this repo (maca-final)

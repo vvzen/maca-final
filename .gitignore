@@ -1,60 +1,36 @@
-# ignore all
-# check another .ignore file in addons folder
+# MAC stuff
+*.DS_Store
 
-# Xcode Project
-xcuserdata/
-*.entitlements
-build/
-*.pbxuser
-!default.pbxuser
-*.mode1v3
-!default.mode1v3
-*.mode2v3
-!default.mode2v3
-*.perspectivev3
-!default.perspectivev3
-xcuserdata
-*.xccheckout
-*.moved-aside
-.xcscmblueprint
-DerivedData
-*.hmap
-*.ipa
-*.xcuserstate
-
-#OSX
-.DS_Store
-*.swp
-*~.nib
-# Thumbnails
-._*
-
-*~
-.svn/
-*.app/
+# Prerequisites
+*.d
 
 # Compiled Object files
 *.slo
 *.lo
 *.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
 
 # Compiled Dynamic libraries
 *.so
 *.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
 
 # Compiled Static libraries
 *.lai
 *.la
 *.a
+*.lib
 
-# xml
-*.*.bak
+# Executables
+*.exe
+*.out
+*.appexport MAY_POPUP=~/Desktop/may-popup-installation/maypopup
 
-*.xcscmblueprint
-
-**/obj/**
-
-# vs code brower database
-*.db
-*.db-shm
-*.db-wal

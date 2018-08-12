@@ -1,0 +1,4 @@
+ofxGui
+ofxIO
+ofxPoco
+ofxSerial

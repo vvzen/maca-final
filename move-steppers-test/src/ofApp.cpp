@@ -18,10 +18,14 @@ void ofApp::setup(){
 
     // SERIAL
     std::vector<ofxIO::SerialDeviceInfo> devices_info = ofxIO::SerialDeviceUtils::listDevices();
-    ofLogNotice("ofApp::setup()") << "Connected devices: ";
+
+    // log connected devices
+    ofLogNotice("ofApp::setup") << "Connected devices: ";
+    for (std::size_t i = 0; i < devices_info.size(); ++i){ ofLogNotice("ofApp::setup") << "\t" << devices_info[i]; }
+
     if (!devices_info.empty()){
 
-        // Connect to the first matching device.
+        // Connect to the matching device.
         bool success = serial_device.setup(devices_info[0], BAUD_RATE);
 
         if (success){
@@ -32,12 +36,12 @@ void ofApp::setup(){
     }
     else ofLogNotice("ofApp::setup") << "No devices connected.";
 
-    ofLogNotice("ofApp::setup()") << "exiting setup()";
+    ofLogNotice("ofApp::setup") << "exiting setup()";
 }
 
 //--------------------------------------------------------------
 void ofApp::update(){
-    
+
 }
 
 //--------------------------------------------------------------
@@ -95,7 +99,7 @@ void ofApp::on_send_command_pressed(){
 
     // Send it to the arduino
     ofx::IO::ByteBuffer buffer(command.str());
-    device.send(buffer);
+    serial_device.send(buffer);
 
     ofLogNotice() << "send command pressed!";
     ofLogNotice() << "command: " << command.str();
@@ -105,9 +109,13 @@ void ofApp::on_send_command_pressed(){
 void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs& args){
     
     // Decoded serial packets will show up here.
-    received_command = args.buffer().toString();
+    //std::string received_command = args.buffer().toString();
 
-    ofLogNotice() << "received message: " << received_command;
+    SerialMessage message;
+    message.message = args.buffer().toString();
+    //serial_messages.push_back(message);
+
+    ofLogNotice("onSerialBuffer") << "received message:\t" << message.message;
 }
 
 //--------------------------------------------------------------
@@ -116,7 +124,9 @@ void ofApp::onSerialError(const ofx::IO::SerialBufferErrorEventArgs& args){
     SerialMessage message;
     message.message = args.buffer().toString();
     message.exception = args.exception().displayText();
-    serial_messages.push_back(message);
+    //serial_messages.push_back(message);
+
+    ofLogNotice("onSerialError") << "got serial error : " << message.exception;
 }
 
 //--------------------------------------------------------------
@@ -124,4 +134,5 @@ void ofApp::exit(){
 	gui_stepper_x_pos.removeListener(this,&ofApp::on_stepper_x_pos_changed);
 	gui_stepper_y_pos.removeListener(this,&ofApp::on_stepper_y_pos_changed);
 	gui_send_command.removeListener(this,&ofApp::on_send_command_pressed);
+    serial_device.unregisterAllEvents(this);
 }

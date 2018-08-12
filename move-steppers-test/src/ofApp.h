@@ -33,9 +33,8 @@ class ofApp : public ofBaseApp{
 		// SERIAL
 		const int BAUD_RATE = 115200;
 
-		std::string sent_command, received_command;
-
-		ofxIO::SLIPPacketSerialDevice device;
+		std::string sent_command;
+		
 		void onSerialBuffer(const ofxIO::SerialBufferEventArgs& args);
 		void onSerialError(const ofxIO::SerialBufferErrorEventArgs& args);
 

@@ -6,7 +6,7 @@ const int STEP_PIN = 5;
 // AccelStepper::DRIVER means we'll be using a driver
 AccelStepper stepper_x(AccelStepper::DRIVER, STEP_PIN, DIR_PIN);
 
-const int home_switch = 7;
+const int HOME_SWITCH_PIN = 7;
 
 long travel_x; // will store the X value entered in serial monitor
 int move_finished = 1; // used to check if a move is completed
@@ -14,7 +14,7 @@ long initial_homing = -1;
 
 void setup() {
 
-  pinMode(home_switch, INPUT_PULLUP);
+  pinMode(HOME_SWITCH_PIN, INPUT_PULLUP);
 
   Serial.begin(9600);
   
@@ -26,11 +26,11 @@ void setup() {
 
   Serial.println("Stepper is Homing . . . . . . . . . . . ");
   Serial.print("home_switch: ");
-  Serial.print(digitalRead(home_switch));
+  Serial.print(digitalRead(HOME_SWITCH_PIN));
 
   // start homing procedure of motor at startup
   // make the motor move CCW until the switch is activated
-  while (digitalRead(home_switch)){
+  while (digitalRead(HOME_SWITCH_PIN)){
     stepper_x.moveTo(initial_homing); // set the destination position
     initial_homing--;
     stepper_x.run(); // start moving the stepper
@@ -45,7 +45,7 @@ void setup() {
   initial_homing = 1;
 
   // make the stepper move CW until the switch is deactivated
-  while (!digitalRead(home_switch)){
+  while (!digitalRead(HOME_SWITCH_PIN)){
     stepper_x.moveTo(initial_homing); // set the destination position
     stepper_x.run(); // start moving the stepper
     initial_homing++;
@@ -68,7 +68,7 @@ void setup() {
 
 void loop() {
   // put your main code here, to run repeatedly:
-  bool is_home = digitalRead(home_switch);
+  bool is_home = digitalRead(HOME_SWITCH_PIN);
 
   Serial.print("is home: ");
   Serial.println(is_home);

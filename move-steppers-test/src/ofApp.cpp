@@ -6,12 +6,16 @@ void ofApp::setup(){
     // GUI
     gui.setup();
     gui.add(gui_stepper_x_pos.set("Stepper motor X position", 0, 0, 100));
-    gui.add(gui_stepper_y_pos.set("Stepper motor Y position", 150, 0, 150));
-    gui.add(gui_send_command.setup("Send Command!"));
+    gui.add(gui_stepper_y_pos.set("Stepper motor Y position", 0, -1500, 1500));
+    gui.add(gui_send_move_command.setup("Send Command"));
+    gui.add(gui_send_sethome_command.setup("Set Home"));
+    gui.add(gui_send_gethome_command.setup("Get Home"));
 
     gui_stepper_x_pos.addListener(this, &ofApp::on_stepper_x_pos_changed);
     gui_stepper_y_pos.addListener(this, &ofApp::on_stepper_y_pos_changed);
-    gui_send_command.addListener(this, &ofApp::on_send_command_pressed);
+    gui_send_move_command.addListener(this, &ofApp::on_send_command_pressed);
+    gui_send_gethome_command.addListener(this, &ofApp::on_send_gethome_pressed);
+    gui_send_sethome_command.addListener(this, &ofApp::on_send_sethome_pressed);
 
     stepper_pos = glm::vec2(0, 150);
     send_command_pressed = false;
@@ -52,7 +56,7 @@ void ofApp::draw(){
     int width = 200;
     int height = 300;
     int pos_x = ofMap(stepper_pos.x, 0, 100, -width/2, width/2);
-    int pos_y = ofMap(stepper_pos.y, 0, 150, -height/2, height/2);
+    int pos_y = ofMap(stepper_pos.y, -1500, 1500, -height/2, height/2);
 
     ofPushMatrix();
 
@@ -106,6 +110,18 @@ void ofApp::on_send_command_pressed(){
 }
 
 //--------------------------------------------------------------
+void ofApp::on_send_gethome_pressed(){
+    ofx::IO::ByteBuffer buffer("GH");
+    serial_device.send(buffer);
+}
+
+//--------------------------------------------------------------
+void ofApp::on_send_sethome_pressed(){
+    ofx::IO::ByteBuffer buffer("HS");
+    serial_device.send(buffer);
+}
+
+//--------------------------------------------------------------
 void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs& args){
     
     // Decoded serial packets will show up here.
@@ -133,6 +149,6 @@ void ofApp::onSerialError(const ofx::IO::SerialBufferErrorEventArgs& args){
 void ofApp::exit(){
 	gui_stepper_x_pos.removeListener(this,&ofApp::on_stepper_x_pos_changed);
 	gui_stepper_y_pos.removeListener(this,&ofApp::on_stepper_y_pos_changed);
-	gui_send_command.removeListener(this,&ofApp::on_send_command_pressed);
+	gui_send_move_command.removeListener(this,&ofApp::on_send_command_pressed);
     serial_device.unregisterAllEvents(this);
 }

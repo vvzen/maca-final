@@ -23,13 +23,11 @@ class ofApp : public ofBaseApp{
 		ofParameter<int> gui_stepper_y_pos;
 		ofxButton gui_send_move_command;
 		ofxButton gui_send_gethome_command;
-		ofxButton gui_send_sethome_command;
 
 		void on_stepper_x_pos_changed(int & pos);
 		void on_stepper_y_pos_changed(int & pos);
 		void on_send_command_pressed();
 		void on_send_gethome_pressed();
-		void on_send_sethome_pressed();
 
 		glm::vec2 stepper_pos;
 		bool send_command_pressed;

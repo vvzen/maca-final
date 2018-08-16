@@ -6,16 +6,14 @@ void ofApp::setup(){
     // GUI
     gui.setup();
     gui.add(gui_stepper_x_pos.set("Stepper motor X position", 0, 0, 100));
-    gui.add(gui_stepper_y_pos.set("Stepper motor Y position", 0, -1500, 1500));
+    gui.add(gui_stepper_y_pos.set("Stepper motor Y position", 0, 0, 1500));
     gui.add(gui_send_move_command.setup("Send Command"));
-    gui.add(gui_send_sethome_command.setup("Set Home"));
     gui.add(gui_send_gethome_command.setup("Get Home"));
 
     gui_stepper_x_pos.addListener(this, &ofApp::on_stepper_x_pos_changed);
     gui_stepper_y_pos.addListener(this, &ofApp::on_stepper_y_pos_changed);
     gui_send_move_command.addListener(this, &ofApp::on_send_command_pressed);
     gui_send_gethome_command.addListener(this, &ofApp::on_send_gethome_pressed);
-    gui_send_sethome_command.addListener(this, &ofApp::on_send_sethome_pressed);
 
     stepper_pos = glm::vec2(0, 150);
     send_command_pressed = false;
@@ -111,13 +109,7 @@ void ofApp::on_send_command_pressed(){
 
 //--------------------------------------------------------------
 void ofApp::on_send_gethome_pressed(){
-    ofx::IO::ByteBuffer buffer("GH");
-    serial_device.send(buffer);
-}
-
-//--------------------------------------------------------------
-void ofApp::on_send_sethome_pressed(){
-    ofx::IO::ByteBuffer buffer("HS");
+    ofx::IO::ByteBuffer buffer("H");
     serial_device.send(buffer);
 }
 

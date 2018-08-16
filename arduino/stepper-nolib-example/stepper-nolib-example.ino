@@ -72,20 +72,12 @@ void setup() {
 // make one step
 void move_one_step(int motor_pin){
   digitalWrite(motor_pin, HIGH);
-  delay(5);               
+  delay(1);               
   digitalWrite(motor_pin, LOW);
-  delay(5);
+  delay(1);
 }
 
 void loop() {
-
-  //Serial.print("Y1: ");
-  //Serial.print(y1_switch_value);
-  //Serial.print(", Y2: ");
-  //Serial.println(y2_switch_value);
-
-
-  
 
   // move steppers
   /*

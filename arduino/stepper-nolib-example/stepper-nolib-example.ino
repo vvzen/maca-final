@@ -1,22 +1,14 @@
+#include <PacketSerial.h> // library by bakercp - https://github.com/bakercp/PacketSerial
 #include <Wire.h>
 #include <Adafruit_INA219.h>
 
-// simple A4988 connection
-// jumper reset and sleep together
-// connect  VDD to Arduino 3.3v or 5v
-// connect  GND to Arduino GND (GND near VDD)
-// connect  1A and 1B to stepper coil 1
-// connect 2A and 2B to stepper coil 2
-// connect VMOT to power source (9v battery + term)
-// connect GRD to power source (9v battery - term)
-
-const int Y1_SWITCH = 2;
-const int Y2_SWITCH = 3;
-
+// SENSORS
 // Declare an instance of INA219 (this sensor is connected via I2C)
 // this is a very handy sensor to check voltage/amperage in the circuit
+// here for debugging
 Adafruit_INA219 ina219;
 
+// MOTORS
 // these arrays contain the values for the three motors.
 // motor 1 (y1), motor 2 (y2) and motor 3 (x1) respectively
 const int NUM_MOTORS = 2;
@@ -24,6 +16,9 @@ bool homing_completed[] = {false, false, false}; // are the motors homed?
 int dir_pins[]          = {5, 7};    // direction pins of the motors
 int step_pins[]         = {6, 8};    // step pins of the motors
 int switch_pins[]       = {2, 3};    // switch pins for each axis
+
+// SERIAL communication
+SLIPPacketSerial packet_serial;
 
 const int steps_per_rotation = 200;
 
@@ -46,27 +41,8 @@ void setup() {
   Serial.begin(9600);
   ina219.begin();
 
-  // start the homing of the motors
-  while (true){
-      
-    // when the switch is true it means we're home  
-    int y1_switch_value = digitalRead(switch_pins[0]);
-    int y2_switch_value = digitalRead(switch_pins[1]);
-
-    //Serial.print("switch_value for motor 1: ");
-    //Serial.println(y1_switch_value);
-    //Serial.print("switch_value for motor 2: ");
-    //Serial.println(y2_switch_value);
-
-    // move forward first motor
-    if (y1_switch_value == 0) move_one_step(step_pins[0]);
-
-    // move forward second motor
-    if (y2_switch_value == 0) move_one_step(step_pins[1]);
-
-    // exit condition: when they're both true
-    if (y1_switch_value == true && y2_switch_value == true) break;
-  }
+  // move motors to their 0 position (up)
+  home_motors();
 }
 
 // make one step
@@ -105,20 +81,23 @@ void loop() {
   */
 }
 
-void home_motor(int step_pin, int switch_pin, int motor_number){
+void home_motors(){
   
-  int switch_value = digitalRead(switch_pin);
-  // move motor until switch is triggered
-  while (!switch_value){
-    
-    Serial.print("switch: ");
-    Serial.println(switch_value);
-    digitalWrite(step_pin, HIGH);
-    delay(5);               
-    digitalWrite(step_pin, LOW);
-    delay(5);
+  // start the homing of the motors
+  while (true){
+      
+    // when the switch is true it means we're home  
+    int y1_switch_value = digitalRead(switch_pins[0]);
+    int y2_switch_value = digitalRead(switch_pins[1]);
 
-    switch_value = digitalRead(switch_pin);
+    // move forward first motor
+    if (y1_switch_value == 0) move_one_step(step_pins[0]);
+
+    // move forward second motor
+    if (y2_switch_value == 0) move_one_step(step_pins[1]);
+
+    // exit condition: when they're both true
+    if (y1_switch_value == true && y2_switch_value == true) break;
   }
 }
 

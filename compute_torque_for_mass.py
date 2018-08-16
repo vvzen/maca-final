@@ -1,5 +1,5 @@
-# @desc: this command line app takes as argument the mass of the object you want to lift
-# and returns the required torque for a 5mm shaft stepper motor
+# @desc: this command line app calculates the torque required to lift an object 
+#        it uses a 5mm motor shaft as a parameter for the torque calculations.
 # @args: -w, the mass (kg) of the object to move upwards
 #        -t, the torque (kg/cm) of the stepper motor
 # @usage: python compute_torque_for_weight.py -w 10

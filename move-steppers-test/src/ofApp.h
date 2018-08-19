@@ -24,6 +24,11 @@ class ofApp : public ofBaseApp{
 		ofxButton gui_send_move_command;
 		ofxButton gui_send_gethome_command;
 
+		const int Y_MIN_POS = 0;
+		const int Y_MAX_POS = 1000;
+		const int X_MIN_POS = 0;
+		const int X_MAX_POS = 800;
+
 		void on_stepper_x_pos_changed(int & pos);
 		void on_stepper_y_pos_changed(int & pos);
 		void on_send_command_pressed();
@@ -33,7 +38,7 @@ class ofApp : public ofBaseApp{
 		bool send_command_pressed;
 		
 		// SERIAL
-		const int BAUD_RATE = 115200;
+		const int BAUD_RATE = 9600;
 
 		std::string sent_command;
 		

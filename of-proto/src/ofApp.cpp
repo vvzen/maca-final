@@ -1,17 +1,29 @@
 #include "ofApp.h"
 #include <sstream>
 
+using namespace ofxCv;
+
 //--------------------------------------------------------------
 void ofApp::setup(){
 
     current_command_index = 0;
 
+    // face tracking vars
+    update_servo = true;
+    send_servo_start_command = true;
+    face_detected = false;
+    // painting process vars
     button_pressed = false;
     show_live_feed = false;
 
     ofLogNotice() << "circle size:" << circle_size;
     ofLogNotice() << "horizontal dots: " << cam_width / circle_size;
     ofLogNotice() << "vertical dots:   " << cam_height / circle_size;
+
+    // GUI
+    gui.setup();
+    gui.add(gui_servo_angle.set("servo angle", 10, 10, 90));
+    gui_servo_angle.addListener(this, &ofApp::on_servo_angle_changed);
 
     // Load the JSON with the video settings from a configuration file.
     ofJson config = ofLoadJson("settings.json");
@@ -27,24 +39,46 @@ void ofApp::setup(){
     thresholded_img_1.allocate(cam_width, cam_height);
     thresholded_img_2.allocate(cam_width, cam_height);
 
+    // FACE TRACKING
+    tracker.setup();
+
     // SERIAl
+    // connect to the paintball machine
+
     // connect to the arduino
     std::vector<ofxIO::SerialDeviceInfo> devices_info = ofxIO::SerialDeviceUtils::listDevices();
+
+    // log available devices
+    ofLogNotice() << "serial devices:";
+    for (auto device : devices_info){
+        ofLogNotice() << "\t" << device;
+    }
+
     if (!devices_info.empty()){
-        // connect to the first matching device
-        bool success = device.setup(devices_info[0], BAUD_RATE);
-        if (success){
+
+        // first device is the arduino for the paintball, second is the one for the face tracking
+        bool success_1 = device.setup(devices_info[0], BAUD_RATE);
+        bool success_2 = servo_cam_serial_device.setup(devices_info[1], BAUD_RATE);
+        
+        if (success_1){
             device.registerAllEvents(this);
             ofLogNotice("ofApp::setup") << "Successfully setup " << devices_info[0];
         }
         else {
             ofLogError("ofApp::setup") << "Unable to setup " << devices_info[0];
         }
+
+        if (success_2){
+            servo_cam_serial_device.registerAllEvents(this);
+            ofLogNotice("ofApp::setup") << "Successfully setup " << devices_info[1];
+        }
+        else {
+            ofLogError("ofApp::setup") << "Unable to setup " << devices_info[1];
+        }
     }
     else {
         ofLogError("ofApp::setup") << "No devices connected";
     }
-
     
     ofSetVerticalSync(true);
 }
@@ -53,28 +87,57 @@ void ofApp::setup(){
 void ofApp::update(){
 
     ofBackground(255);
-    
+
+    seconds_elapsed = (int) (floor(ofGetElapsedTimef()) + 1) % 60; // I don't need the actual amount, but just the timing
+
+    // SERVO
+    // wait 10 seconds and send the first command to the servo
+    if ((seconds_elapsed % 8 == 0) && send_servo_start_command){
+        
+        gui_servo_angle = SERVO_START_POSITION;
+        
+        std::stringstream servo_start_command;
+        servo_start_command << 's' << ofToString(gui_servo_angle);
+        
+        ofxIO::ByteBuffer buffer(servo_start_command.str());
+        servo_cam_serial_device.send(buffer);
+        
+        ofLogNotice() << "SERVO START COMMAND";
+
+        send_servo_start_command = false;
+    }
+
+    // VIDEO
     video_grabber->update();
 
     if (video_grabber->isFrameNew()){
 
-        if (!button_pressed){
+        // convert video grabber to ofImage and send it to the face tracker
+        ofPixels & grabber_pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
+        img_for_tracker.setFromPixels(grabber_pixels);
+        tracker.update(toCv(img_for_tracker));
+
+        // update the tracked face position
+        tracked_face_position = tracker.getPosition();
+
+        if (face_detected){
+        // if (!button_pressed){
 
             red_dots_positions.clear();
             black_dots_positions.clear();
 
-            ofPixels & pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
+            // ofPixels & pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
 
-            color_img.setFromPixels(pixels);
+            color_img.setFromPixels(grabber_pixels);
 
             // threshold the image using two different levels
             // blue dots
             thresholded_img_1 = color_img;
-            thresholded_img_1.threshold(80);
+            thresholded_img_1.threshold(FIRST_THRESHOLD);
 
             // red dots
             thresholded_img_2 = color_img;
-            thresholded_img_2.threshold(110);
+            thresholded_img_2.threshold(SECOND_THRESHOLD);
 
             // create the DOTS IMAGE
             // convert the image to a matrix of dots
@@ -89,39 +152,45 @@ void ofApp::update(){
             ofPixels thresh_pixels_1 = thresholded_img_1.getPixels();
             ofPixels thresh_pixels_2 = thresholded_img_2.getPixels();
 
+            int search_radius = 200;
+
             for (float x = circle_size/2; x < cam_width; x += circle_size*2){
                 for (float y = circle_size/2; y < cam_height; y += circle_size*2){
                     
-                    ofColor c = thresh_pixels_1.getColor(x, y);
+                    // only care for pixels close to the current tracked face
+                    if (ofDist(x, y, tracked_face_position.x, tracked_face_position.y) <= search_radius) {
+                        
+                        ofColor c = thresh_pixels_1.getColor(x, y);
                     
-                    // take the color for the circle from the first thresholded image
-                    // if color is white then look at the other thresholded image
-                    // else use blue
-                    if (c.getLightness() == 255){
-
-                        c = thresh_pixels_2.getColor(x, y);
-
-                        // if thresh pixels 2 are white then use white (which will be the bg)
+                        // take the color for the circle from the first thresholded image
+                        // if color is white then look at the other thresholded image
+                        // else use blue
                         if (c.getLightness() == 255){
-                            ofSetColor(ofColor::white);
-                            ofDrawCircle(x, y, circle_size);
+
+                            c = thresh_pixels_2.getColor(x, y);
+
+                            // if thresh pixels 2 are white then use white (which will be the bg)
+                            if (c.getLightness() == 255){
+                                ofSetColor(ofColor::white);
+                                ofDrawCircle(x, y, circle_size);
+                            }
+                            // otherwise use red dots
+                            else {
+                                ofSetColor(ofColor::red);
+                                ofDrawCircle(x, y, circle_size);
+                                num_dots++;
+                                glm::vec2 current_pos(x, y);
+                                red_dots_positions.push_back(current_pos);
+                            }
                         }
-                        // otherwise use red dots
+                        // use blue dots
                         else {
-                            ofSetColor(ofColor::red);
+                            ofSetColor(ofColor::blue);
                             ofDrawCircle(x, y, circle_size);
                             num_dots++;
                             glm::vec2 current_pos(x, y);
-                            red_dots_positions.push_back(current_pos);
+                            black_dots_positions.push_back(current_pos);
                         }
-                    }
-                    // use blue dots
-                    else {
-                        ofSetColor(ofColor::blue);
-                        ofDrawCircle(x, y, circle_size);
-                        num_dots++;
-                        glm::vec2 current_pos(x, y);
-                        black_dots_positions.push_back(current_pos);
                     }
                 }
             }
@@ -134,27 +203,92 @@ void ofApp::update(){
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-    //color_img.draw(cam_width, 0);
-    // thresholded_img_1.draw(0, 0);
-    // thresholded_img_2.draw(cam_width, 0);
-    dots_fbo.draw(0, 0);
 
     // show the live feed is "s" is pressed
-    if (show_live_feed) video_grabber->draw(0, 0, 320, 240);
+    if (show_live_feed) 
+    // if (show_live_feed) video_grabber->draw(0, 0, 320, 240);
 
-    std::stringstream ss;
+    if (APP_DEBUG) ofDrawBitmapStringHighlight("elapsed seconds: " + ofToString(seconds_elapsed), ofPoint(300, 60));
+
+    gui.draw();
+
+    if (APP_DEBUG) ofDrawBitmapString(ofToString((int) ofGetFrameRate()), 100, 20);
+
+    // if a face is detected
+    if(tracker.getFound()) {
+
+        dots_fbo.draw(0, 0);
+
+        face_detected = true;
+
+        ofSetColor(255);
+        ofNoFill();
+        
+        int width = 200;
+        int height = 200;
+
+        if (APP_DEBUG) ofDrawRectangle(tracked_face_position.x-width/2, tracked_face_position.y-height/2, width, height);
+        
+        glm::vec2 screen_center = glm::vec2(ofGetWidth()/2, ofGetHeight()/2);
+
+        float current_distance = tracked_face_position.y - screen_center.y;
+
+        ofDrawLine(tracked_face_position, screen_center);
+
+        ofDrawBitmapStringHighlight("face position: " + ofToString(tracked_face_position), ofPoint(300, 15));
+        // ofDrawBitmapStringHighlight("required angle: " + ofToString(required_angle), ofPoint(300, 30));
+        ofDrawBitmapStringHighlight("current distance: " + ofToString(current_distance), ofPoint(300, 45));
+
+        // every 2 seconds, but first wait to have moved the servo for the first time
+        if (seconds_elapsed % SERVO_UPDATE_DELAY == 0 && update_servo && !send_servo_start_command){
+
+            ofLogNotice() << "\tupdate servo: " << update_servo << " at: " << seconds_elapsed << " seconds";
+            
+            // if the face is too distant from the center
+            if (abs(current_distance) >= FACE_DISTANCE_THRESHOLD){
+                bool is_negative = current_distance < 0;
+                
+                if (is_negative){
+                    // increase current angle
+                    gui_servo_angle += 2;
+                }
+                else {
+                    // decrease current angle
+                    gui_servo_angle -= 2;
+                }
+
+                // prepend an s to the command (ie: s40)
+                /* stringstream ss;
+                ss << "s" << gui_servo_angle;
+                ofxIO::ByteBuffer servo_command(ss.str());
+                ofLogNotice() << "sending " << ss.str();
+                servo_cam_serial_device.send(servo_command); */
+            }
+            update_servo = false;
+        }
+    }
+    else {
+        face_detected = false;
+        img_for_tracker.draw(0, 0);
+    }
+
+    // we want to update the servo only 1 time every 2 seconds, not 60 times every 2 seconds
+    if (seconds_elapsed % SERVO_UPDATE_DELAY == 1) update_servo = true;
+
+    /* std::stringstream ss;
 
     ss << " App FPS: " << ofGetFrameRate() << std::endl;
     ss << " Cam FPS: " << video_grabber->getGrabber<ofxPS3EyeGrabber>()->getFPS() << std::endl;
     ss << "Real FPS: " << video_grabber->getGrabber<ofxPS3EyeGrabber>()->getActualFPS() << std::endl;
     ss << "      id: 0x" << ofToHex(video_grabber->getGrabber<ofxPS3EyeGrabber>()->getDeviceId());
 
-    ofDrawBitmapStringHighlight(ss.str(), ofPoint(10, 15));
+    ofDrawBitmapStringHighlight(ss.str(), ofPoint(10, 15)); */
 }
 
 //--------------------------------------------------------------
 void ofApp::exit(){
     device.unregisterAllEvents(this);
+    servo_cam_serial_device.unregisterAllEvents(this);
 }
 
 //--------------------------------------------------------------
@@ -209,6 +343,16 @@ void ofApp::send_current_command(int i){
     // check onSerialBuffer to see what happens after we sent a command
 }
 
+//--------------------------------------------------------------
+void ofApp::on_servo_angle_changed(int & servo_angle){
+
+    // std::stringstream servo_command;
+    // servo_command << "s" << servo_angle;
+
+    // ofxIO::ByteBuffer buffer(servo_command.str());
+    // ofLogNotice() << "sending " << servo_command.str();
+    // servo_cam_serial_device.send(buffer);
+}
 
 //--------------------------------------------------------------
 void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs& args){
@@ -239,18 +383,4 @@ void ofApp::onSerialError(const ofx::IO::SerialBufferErrorEventArgs& args){
     message.message = args.buffer().toString();
     message.exception = args.exception().displayText();
     serial_messages.push_back(message);
-}
-
-//--------------------------------------------------------------
-void ofApp::export_dots_to_csv(vector<glm::vec2> positions, std::string filename){
-    
-    ofFile csv_file(ofToDataPath(filename), ofFile::WriteOnly, false);
-
-    csv_file << "start" << endl;
-    
-    for (auto pos : positions){
-        csv_file << pos.x << "," << pos.y << endl;
-    }
-
-    csv_file << "end" << endl;
 }

@@ -5,14 +5,14 @@
 // these arrays contain the values for the three motors.
 // motor 1 (y1), motor 2 (y2) and motor 3 (x1) respectively
 const int NUM_MOTORS = 2;
-int dir_pins[]          = {5, 7};    // direction pins of the motors
-int step_pins[]         = {6, 8};    // step pins of the motors
-int switch_pins[]       = {2, 3};    // switch pins for each axis
+int dir_pins[]          = {5, 7, 11};    // direction pins of the motors
+int step_pins[]         = {6, 8, 12};    // step pins of the motors
+int switch_pins[]       = {2, 3, 13};    // switch pins for each axis
 
 int enable_pins[]       = {9, 10};  // enable pins of the motors
 
 const int STEPS_PER_ROTATION = 200;
-const int STEPS_PER_MM = 5; // see compute_linear_distance_from_steps.py
+const float STEPS_PER_MM = 10 / 3; // see compute_linear_distance_from_steps.py
 
 // SERIAL communication
 SLIPPacketSerial packet_serial;
@@ -30,17 +30,21 @@ void setup() {
     // DEBUG
     pinMode(enable_pins[i], OUTPUT);
 
-    // set enable to HIGH
-    digitalWrite(enable_pins[i], LOW);
   }
+
+  // set enable pins to LOW
+  digitalWrite(enable_pins[0], LOW);
+  digitalWrite(enable_pins[1], LOW);
   
   // serial
   packet_serial.begin(9600);
   packet_serial.setPacketHandler(&on_packet_received);
 
-  //move_x_motor(500, false);
-  //home_motors();
-  test_motors();
+  //move_x_motor(100, false);
+  home_motors();
+  //test_motors();
+
+  //move_y_motors(200, false);
 
   delay(1000);
 }
@@ -48,7 +52,7 @@ void setup() {
 void loop() {
   
   // read any incoming serial data (see on_packet_received() )
-  //packet_serial.update();
+  packet_serial.update();
 }
 
 // MOTORS MOVEMENT
@@ -115,14 +119,35 @@ void test_motors(){
 
 // MOTORS HOMING
 void home_motors(){
+
+  // set motors direction up
+  digitalWrite(dir_pins[0], LOW);
+  digitalWrite(dir_pins[1], LOW);
+  digitalWrite(dir_pins[2], LOW);
+
+  // first home the x
+  while (true){
+    int x_switch_value = digitalRead(switch_pins[2]);
+
+    // move forward x motor
+    if (x_switch_value == 0) move_one_step(step_pins[2]);
+
+    // exit condition
+    if (x_switch_value == true) break;
+  }
   
-  // start the homing of the motors
+  // then put it at the center
+  digitalWrite(dir_pins[2], HIGH);
+  move_x_motor(100, false);
+
+  /*
+  // finally home the other ones
   while (true){
       
     // when the switch is true it means we're home  
     int y1_switch_value = digitalRead(switch_pins[0]);
     int y2_switch_value = digitalRead(switch_pins[1]);
-    int x_switch_value = digitalRead(switch_pins[2]);
+    
 
     // move forward first y motor
     if (y1_switch_value == 0) move_one_step(step_pins[0]);
@@ -130,16 +155,13 @@ void home_motors(){
     // move forward second y motor
     if (y2_switch_value == 0) move_one_step(step_pins[1]);
 
-    // move forward x motor
-    if (x_switch_value == 0) move_one_step(step_pins[2]);
-
-    // exit condition: when they're all three true
-    if (y1_switch_value == true && y2_switch_value == true && x_switch_value == true) break;
+    // exit condition: when they're both three true
+    if (y1_switch_value == true && y2_switch_value == true) break;
   }
-  
+  */
   // set motors direction down
-  digitalWrite(dir_pins[0], LOW);
-  digitalWrite(dir_pins[1], LOW);
+  digitalWrite(dir_pins[0], HIGH);
+  digitalWrite(dir_pins[1], HIGH);
 }
 
 // SERIAL

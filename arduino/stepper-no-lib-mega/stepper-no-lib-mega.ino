@@ -15,7 +15,14 @@ int step_pins[]         = {27, 43, 4};    // step pins of the motors
 int enable_pins[]       = {31, 47};       // enable pins of the motors
 int switch_pins[]       = {35, 51, 8};    // switch pins for each axis
 
-// TODO: HAVE A GLOBAL POSITION LOGIC TO MOVE THE MOTOR 
+// just using some vars for a better readability
+const bool RIGHT = false;
+const bool LEFT = true;
+const bool UP = true;
+const bool DOWN = false;
+
+// stores the current position of the motor (x, y)
+int current_pos[2];
 
 const int STEPS_PER_ROTATION = 200;
 // FIXME: with the current pulley I get a decimal amount of steps per mm, which is not good
@@ -35,17 +42,28 @@ void setup() {
     pinMode(step_pins[i], OUTPUT);
   }
 
-  // set enable pins for y axis
+  // set enable pins for y axis to LOW
   pinMode(enable_pins[0], OUTPUT);
   pinMode(enable_pins[1], OUTPUT);
 
-  // set enable pins to LOW
   digitalWrite(enable_pins[0], LOW);
   digitalWrite(enable_pins[1], LOW);
   
   // serial
   serial.setPacketHandler(&on_packet_received);
   serial.begin(9600);
+
+  // set the current pos to a negative number so we know we're not home
+  current_pos[0] = -1;
+  current_pos[1] = -1;
+
+  move_x_motor(100, LEFT, true);
+
+  move_y_motors(200, UP, true);
+
+  move_x_motor(100, RIGHT, true);
+
+  move_y_motors(200, DOWN, true);
 
   //move_x_motor(100, false);
   //home_motors();
@@ -78,19 +96,38 @@ void on_packet_received(const uint8_t* buffer, size_t size){
 void on_stepper(OSCMessage& msg){
 
   String message = "stepperx:";
-  
+
+  int new_pos[2];
+
+
+  // X
   if (msg.isInt(0)){
-    message += msg.getInt(0);
-    int x_move = msg.getInt(0);
-    message += x_move;
-    move_x_motors(x_move, true);
+    // compose the message for debugging
+    new_pos[0] = msg.getInt(0);
+    message += new_pos[0];
     
+    // compute difference to get direction
+    int required_movement = current_pos[0] - new_pos[0];
+    // check direction (if + go right, if - go left)
+    bool dir = (required_movement >= 0) ? RIGHT : LEFT;
+    // move the motor
+    move_x_motor(abs(required_movement), dir, true);
+    // update current pos
+    current_pos[0] = new_pos[0];
   }
+  // Y
   if (msg.isInt(1)){
     message += "y:";
-    int y_move = msg.getInt(1);
-    message += y_move;
-    move_y_motors(y_move, true);
+    new_pos[1] = msg.getInt(1);
+    message += new_pos[1];
+    // compute difference to get direction
+    int required_movement = new_pos[1] - current_pos[1];
+    // check direction (if + go down, if - go up)
+    bool dir = (required_movement >= 0) ? DOWN : UP;
+    // move the motor
+    move_y_motors(abs(required_movement), dir, true);
+    // update current pos
+    current_pos[1] = new_pos[1];
   }
 
   char message_buffer[16];
@@ -134,8 +171,7 @@ void home_motors(){
   }
   
   // then put it at the center
-  digitalWrite(dir_pins[2], HIGH);
-  move_x_motor(100, false);
+  move_x_motor(100, true, false);
 
   // finally home the other ones
   while (true){
@@ -159,10 +195,27 @@ void home_motors(){
   digitalWrite(dir_pins[1], HIGH);
 
   // move y down a little bit
-  move_y_motors(50, false);
+  move_y_motors(50, false, false);
+
+  // save the new current pos
+  current_pos[0] = 0;
+  current_pos[1] = 0;
 }
 
-void move_x_motor(int amount, bool check){
+// @amount --> movement in mm
+// @dir    --> true for right, false for left
+// @check  --> if you need to check the end stops
+void move_x_motor(int amount, bool dir, bool check){
+
+  // change direction
+  if (dir){
+    digitalWrite(dir_pins[2], HIGH);
+  }
+  else {
+    digitalWrite(dir_pins[2], LOW);
+  }
+
+  // move
   for (int i = 0; i < amount * STEPS_PER_MM; i++){
     // if user told us to check the switch, do it
     if (check){
@@ -174,7 +227,22 @@ void move_x_motor(int amount, bool check){
   }
 }
 
-void move_y_motors(int amount, bool check){
+// @amount --> movement in mm
+// @dir    --> true for up, false for down
+// @check  --> if you need to check the end stops
+void move_y_motors(int amount, bool dir, bool check){
+
+  // change direction
+  if (dir){
+    digitalWrite(dir_pins[0], LOW);
+    digitalWrite(dir_pins[1], LOW);
+  }
+  else {
+    digitalWrite(dir_pins[0], HIGH);
+    digitalWrite(dir_pins[1], HIGH);
+  }
+
+  // move
   for (int i = 0; i < amount * STEPS_PER_MM; i++){
     // if user told us to check the switch, do it
     if (check){

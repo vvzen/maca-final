@@ -1,5 +1,10 @@
+#include <OSCBundle.h> .   // Copyright Antoine Villeret - 2015
 #include <PacketSerial.h> // library by bakercp - https://github.com/bakercp/PacketSerial
-#include <Wire.h>
+//#include <Wire.h>
+
+// SERIAL communication
+const int PACKET_SERIAL_BUFFER_SIZE = 128;
+PacketSerial_<SLIP, SLIP::END, PACKET_SERIAL_BUFFER_SIZE> serial;
 
 // MOTORS
 // these arrays contain the values for the three motors.
@@ -10,14 +15,13 @@ int step_pins[]         = {27, 43, 4};    // step pins of the motors
 int enable_pins[]       = {31, 47};       // enable pins of the motors
 int switch_pins[]       = {35, 51, 8};    // switch pins for each axis
 
+// TODO: HAVE A GLOBAL POSITION LOGIC TO MOVE THE MOTOR 
+
 const int STEPS_PER_ROTATION = 200;
 // FIXME: with the current pulley I get a decimal amount of steps per mm, which is not good
 const int STEPS_PER_MM = 3; // see compute_linear_distance_from_steps.py
 const int STEPS_PER_10MM = 9;
 // 9 steps equal 10 mm
-
-// SERIAL communication
-SLIPPacketSerial packet_serial;
 
 void setup() {
   
@@ -40,8 +44,8 @@ void setup() {
   digitalWrite(enable_pins[1], LOW);
   
   // serial
-  packet_serial.begin(9600);
-  packet_serial.setPacketHandler(&on_packet_received);
+  serial.setPacketHandler(&on_packet_received);
+  serial.begin(9600);
 
   //move_x_motor(100, false);
   //home_motors();
@@ -49,14 +53,57 @@ void setup() {
   //move_y_motors(200, false);
 
   delay(1000);
-
-  packet_serial.send("ready", 6);
 }
 
 void loop() {
   
   // read any incoming serial data (see on_packet_received() )
-  packet_serial.update();
+  serial.update();
+}
+
+// SERIAL communication
+void on_packet_received(const uint8_t* buffer, size_t size){
+  OSCBundle bundle;
+  bundle.fill(buffer, size);
+
+  // dispatch the various messages
+  if (!bundle.hasError()){
+    bundle.dispatch("/home", on_home);
+    bundle.dispatch("/stepper", on_stepper);
+  }
+}
+
+// OSC message handlers
+// STEPPERS
+void on_stepper(OSCMessage& msg){
+
+  String message = "stepperx:";
+  
+  if (msg.isInt(0)){
+    message += msg.getInt(0);
+    int x_move = msg.getInt(0);
+    message += x_move;
+    move_x_motors(x_move, true);
+    
+  }
+  if (msg.isInt(1)){
+    message += "y:";
+    int y_move = msg.getInt(1);
+    message += y_move;
+    move_y_motors(y_move, true);
+  }
+
+  char message_buffer[16];
+  message.toCharArray(message_buffer, 16);
+  // let the of app know we've received stuff
+  serial.send(message_buffer, 16);
+}
+
+void on_home(OSCMessage& msg){
+  if (msg.isInt(0)){
+    serial.send("home", 4);
+    home_motors();
+  }
 }
 
 // MOTORS MOVEMENT
@@ -65,6 +112,54 @@ void move_one_step(int motor_pin){
   delayMicroseconds(500);
   digitalWrite(motor_pin, LOW);
   delayMicroseconds(500);
+}
+
+// MOTORS HOMING
+void home_motors(){
+
+  // set motors direction up
+  digitalWrite(dir_pins[0], LOW);
+  digitalWrite(dir_pins[1], LOW);
+  digitalWrite(dir_pins[2], LOW);
+
+  // first home the x
+  while (true){
+    int x_switch_value = digitalRead(switch_pins[2]);
+
+    // move forward x motor
+    if (x_switch_value == 0) move_one_step(step_pins[2]);
+
+    // exit condition
+    if (x_switch_value == true) break;
+  }
+  
+  // then put it at the center
+  digitalWrite(dir_pins[2], HIGH);
+  move_x_motor(100, false);
+
+  // finally home the other ones
+  while (true){
+      
+    // when the switch is true it means we're home  
+    int y1_switch_value = digitalRead(switch_pins[0]);
+    int y2_switch_value = digitalRead(switch_pins[1]);
+
+    // move forward first y motor
+    if (y1_switch_value == 0) move_one_step(step_pins[0]);
+
+    // move forward second y motor
+    if (y2_switch_value == 0) move_one_step(step_pins[1]);
+
+    // exit condition: when they're both three true
+    if (y1_switch_value == true && y2_switch_value == true) break;
+  }
+  
+  // set motors direction down
+  digitalWrite(dir_pins[0], HIGH);
+  digitalWrite(dir_pins[1], HIGH);
+
+  // move y down a little bit
+  move_y_motors(50, false);
 }
 
 void move_x_motor(int amount, bool check){
@@ -121,52 +216,7 @@ void test_motors(){
   }
 }
 
-// MOTORS HOMING
-void home_motors(){
-
-  // set motors direction up
-  digitalWrite(dir_pins[0], LOW);
-  digitalWrite(dir_pins[1], LOW);
-  digitalWrite(dir_pins[2], LOW);
-
-  // first home the x
-  while (true){
-    int x_switch_value = digitalRead(switch_pins[2]);
-
-    // move forward x motor
-    if (x_switch_value == 0) move_one_step(step_pins[2]);
-
-    // exit condition
-    if (x_switch_value == true) break;
-  }
-  
-  // then put it at the center
-  digitalWrite(dir_pins[2], HIGH);
-  move_x_motor(100, false);
-
-  // finally home the other ones
-  while (true){
-      
-    // when the switch is true it means we're home  
-    int y1_switch_value = digitalRead(switch_pins[0]);
-    int y2_switch_value = digitalRead(switch_pins[1]);
-    
-
-    // move forward first y motor
-    if (y1_switch_value == 0) move_one_step(step_pins[0]);
-
-    // move forward second y motor
-    if (y2_switch_value == 0) move_one_step(step_pins[1]);
-
-    // exit condition: when they're both three true
-    if (y1_switch_value == true && y2_switch_value == true) break;
-  }
-  
-  // set motors direction down
-  digitalWrite(dir_pins[0], HIGH);
-  digitalWrite(dir_pins[1], HIGH);
-}
-
+/*
 // SERIAL
 // When an encoded packet is received and decoded, it will be delivered here.
 // The `buffer` is a pointer to the decoded byte array. `size` is the number of
@@ -180,7 +230,7 @@ void on_packet_received(const uint8_t * buff, size_t buff_size){
   memcpy(temp_buffer, buff, buff_size);
 
   // send back same message
-  packet_serial.send(temp_buffer, buff_size);
+  serial.send(temp_buffer, buff_size);
 
   if (temp_buffer[0] == 'M'){
     handle_move_command(temp_buffer, buff_size);
@@ -191,10 +241,11 @@ void on_packet_received(const uint8_t * buff, size_t buff_size){
   
   //delay(1000);
 }
+*/
 
 void handle_home_command(const uint8_t * buff, size_t buff_size){
   home_motors();
-  packet_serial.send("home", 4);
+  serial.send("home", 4);
 }
 
 void handle_move_command(const uint8_t * buff, size_t buff_size){
@@ -238,9 +289,9 @@ void handle_move_command(const uint8_t * buff, size_t buff_size){
   x_move_string.toCharArray(x_move_buffer, 4);
   y_move_string.toCharArray(y_move_buffer, 4);
   
-  packet_serial.send("x move:", 6);
-  packet_serial.send(x_move_buffer, 4);
-  packet_serial.send("y move:", 6);
-  packet_serial.send(y_move_buffer, 4);
+  serial.send("x move:", 6);
+  serial.send(x_move_buffer, 4);
+  serial.send("y move:", 6);
+  serial.send(y_move_buffer, 4);
 }
 

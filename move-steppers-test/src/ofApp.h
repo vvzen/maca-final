@@ -4,6 +4,7 @@
 #include "ofxGui.h"
 #include "ofxSerial.h"
 #include "ofEvents.h"
+#include "ofxOsc.h"
 
 struct SerialMessage{
     std::string message;
@@ -47,4 +48,8 @@ class ofApp : public ofBaseApp{
 
 		ofxIO::SLIPPacketSerialDevice serial_device;
 		std::vector<SerialMessage> serial_messages;
+
+	private:
+		void send_osc_bundle(ofxOscMessage &m, int buffer_size);
+    	void append_message(ofxOscMessage& message, osc::OutboundPacketStream& p );
 };

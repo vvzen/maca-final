@@ -5,19 +5,17 @@ void ofApp::setup(){
 
     // GUI
     gui.setup();
-    gui.add(gui_stepper_x_pos.set("Stepper motor X position", 0, 0, 100));
-    gui.add(gui_stepper_y_pos.set("Stepper motor Y position", 0, -1500, 1500));
+    gui.add(gui_stepper_x_pos.set("Stepper motor X position", X_MIN_POS, X_MIN_POS, X_MAX_POS));
+    gui.add(gui_stepper_y_pos.set("Stepper motor Y position", Y_MIN_POS, Y_MIN_POS, Y_MAX_POS));
     gui.add(gui_send_move_command.setup("Send Command"));
-    gui.add(gui_send_sethome_command.setup("Set Home"));
     gui.add(gui_send_gethome_command.setup("Get Home"));
 
     gui_stepper_x_pos.addListener(this, &ofApp::on_stepper_x_pos_changed);
     gui_stepper_y_pos.addListener(this, &ofApp::on_stepper_y_pos_changed);
     gui_send_move_command.addListener(this, &ofApp::on_send_command_pressed);
     gui_send_gethome_command.addListener(this, &ofApp::on_send_gethome_pressed);
-    gui_send_sethome_command.addListener(this, &ofApp::on_send_sethome_pressed);
 
-    stepper_pos = glm::vec2(0, 150);
+    stepper_pos = glm::vec2(0, 0);
     send_command_pressed = false;
 
     // SERIAL
@@ -53,10 +51,10 @@ void ofApp::draw(){
 
     ofBackground(ofColor(35));
 
-    int width = 200;
-    int height = 300;
-    int pos_x = ofMap(stepper_pos.x, 0, 100, -width/2, width/2);
-    int pos_y = ofMap(stepper_pos.y, -1500, 1500, -height/2, height/2);
+    int width = X_MAX_POS / 4;
+    int height = Y_MAX_POS / 4;
+    int pos_x = ofMap(stepper_pos.x, X_MIN_POS, X_MAX_POS, -width/2, width/2);
+    int pos_y = ofMap(stepper_pos.y, Y_MIN_POS, Y_MAX_POS, -height/2, height/2);
 
     ofPushMatrix();
 
@@ -111,13 +109,10 @@ void ofApp::on_send_command_pressed(){
 
 //--------------------------------------------------------------
 void ofApp::on_send_gethome_pressed(){
-    ofx::IO::ByteBuffer buffer("GH");
-    serial_device.send(buffer);
-}
-
-//--------------------------------------------------------------
-void ofApp::on_send_sethome_pressed(){
-    ofx::IO::ByteBuffer buffer("HS");
+    std::ostringstream command;
+    command << "H";
+    ofx::IO::ByteBuffer buffer(command.str());
+    ofLogNotice() << "sending home: " << command.str();
     serial_device.send(buffer);
 }
 
@@ -131,7 +126,7 @@ void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs& args){
     message.message = args.buffer().toString();
     //serial_messages.push_back(message);
 
-    ofLogNotice("onSerialBuffer") << "received message:\t" << message.message;
+    ofLogNotice() << "received message: " << message.message;
 }
 
 //--------------------------------------------------------------
@@ -142,7 +137,7 @@ void ofApp::onSerialError(const ofx::IO::SerialBufferErrorEventArgs& args){
     message.exception = args.exception().displayText();
     //serial_messages.push_back(message);
 
-    ofLogNotice("onSerialError") << "got serial error : " << message.exception;
+    ofLogNotice() << "got serial error: " << message.exception;
 }
 
 //--------------------------------------------------------------

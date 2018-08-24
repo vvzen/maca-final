@@ -23,19 +23,22 @@ class ofApp : public ofBaseApp{
 		ofParameter<int> gui_stepper_y_pos;
 		ofxButton gui_send_move_command;
 		ofxButton gui_send_gethome_command;
-		ofxButton gui_send_sethome_command;
+
+		const int Y_MIN_POS = 0;
+		const int Y_MAX_POS = 1000;
+		const int X_MIN_POS = 0;
+		const int X_MAX_POS = 800;
 
 		void on_stepper_x_pos_changed(int & pos);
 		void on_stepper_y_pos_changed(int & pos);
 		void on_send_command_pressed();
 		void on_send_gethome_pressed();
-		void on_send_sethome_pressed();
 
 		glm::vec2 stepper_pos;
 		bool send_command_pressed;
 		
 		// SERIAL
-		const int BAUD_RATE = 115200;
+		const int BAUD_RATE = 9600;
 
 		std::string sent_command;
 		

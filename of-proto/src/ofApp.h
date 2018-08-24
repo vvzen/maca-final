@@ -57,12 +57,12 @@ class ofApp : public ofBaseApp{
 		ofxCvGrayscaleImage thresholded_img_2;
 
 		// current settings for the hatchlab
-		const int FIRST_THRESHOLD = 80; // things darker than this become blue
-		const int SECOND_THRESHOLD = 170; // things darker than this become red
+		const int FIRST_THRESHOLD = 90; // things darker than this become blue
+		const int SECOND_THRESHOLD = 190; // things darker than this become orange
 		
 		// used to generate the code for the paintball guns
-		vector<glm::vec2> red_dots_positions; 
-		vector<glm::vec2> black_dots_positions;
+		vector<glm::vec2> midtones_dots_positions; 
+		vector<glm::vec2> darker_dots_positions;
 
 		// SERIAL
 		// serial communication with arduino

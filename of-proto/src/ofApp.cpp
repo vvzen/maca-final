@@ -123,8 +123,8 @@ void ofApp::update(){
         if (face_detected){
         // if (!button_pressed){
 
-            red_dots_positions.clear();
-            black_dots_positions.clear();
+            midtones_dots_positions.clear();
+            darker_dots_positions.clear();
 
             // ofPixels & pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
 
@@ -135,7 +135,7 @@ void ofApp::update(){
             thresholded_img_1 = color_img;
             thresholded_img_1.threshold(FIRST_THRESHOLD);
 
-            // red dots
+            // orange dots
             thresholded_img_2 = color_img;
             thresholded_img_2.threshold(SECOND_THRESHOLD);
 
@@ -152,7 +152,7 @@ void ofApp::update(){
             ofPixels thresh_pixels_1 = thresholded_img_1.getPixels();
             ofPixels thresh_pixels_2 = thresholded_img_2.getPixels();
 
-            int search_radius = 200;
+            int search_radius = 300;
 
             for (float x = circle_size/2; x < cam_width; x += circle_size*2){
                 for (float y = circle_size/2; y < cam_height; y += circle_size*2){
@@ -174,13 +174,13 @@ void ofApp::update(){
                                 ofSetColor(ofColor::white);
                                 ofDrawCircle(x, y, circle_size);
                             }
-                            // otherwise use red dots
+                            // otherwise use orange dots
                             else {
-                                ofSetColor(ofColor::red);
+                                ofSetColor(ofColor::orange);
                                 ofDrawCircle(x, y, circle_size);
                                 num_dots++;
                                 glm::vec2 current_pos(x, y);
-                                red_dots_positions.push_back(current_pos);
+                                midtones_dots_positions.push_back(current_pos);
                             }
                         }
                         // use blue dots
@@ -189,7 +189,7 @@ void ofApp::update(){
                             ofDrawCircle(x, y, circle_size);
                             num_dots++;
                             glm::vec2 current_pos(x, y);
-                            black_dots_positions.push_back(current_pos);
+                            darker_dots_positions.push_back(current_pos);
                         }
                     }
                 }
@@ -209,8 +209,6 @@ void ofApp::draw(){
     // if (show_live_feed) video_grabber->draw(0, 0, 320, 240);
 
     if (APP_DEBUG) ofDrawBitmapStringHighlight("elapsed seconds: " + ofToString(seconds_elapsed), ofPoint(300, 60));
-
-    gui.draw();
 
     if (APP_DEBUG) ofDrawBitmapString(ofToString((int) ofGetFrameRate()), 100, 20);
 
@@ -235,9 +233,11 @@ void ofApp::draw(){
 
         ofDrawLine(tracked_face_position, screen_center);
 
-        ofDrawBitmapStringHighlight("face position: " + ofToString(tracked_face_position), ofPoint(300, 15));
+        ofDrawBitmapStringHighlight("face position: " + ofToString(tracked_face_position), ofPoint(100, 15));
         // ofDrawBitmapStringHighlight("required angle: " + ofToString(required_angle), ofPoint(300, 30));
-        ofDrawBitmapStringHighlight("current distance: " + ofToString(current_distance), ofPoint(300, 45));
+        ofDrawBitmapStringHighlight("current distance: " + ofToString(current_distance), ofPoint(100, 30));
+        ofDrawBitmapStringHighlight("orange dots: " + ofToString(midtones_dots_positions.size()), ofPoint(100, 45));
+        ofDrawBitmapStringHighlight("grid size: " + ofToString(cam_width / circle_size*2), ofPoint(100, 60));
 
         // every 2 seconds, but first wait to have moved the servo for the first time
         if (seconds_elapsed % SERVO_UPDATE_DELAY == 0 && update_servo && !send_servo_start_command){
@@ -272,6 +272,8 @@ void ofApp::draw(){
         img_for_tracker.draw(0, 0);
     }
 
+    gui.draw();
+
     // we want to update the servo only 1 time every 2 seconds, not 60 times every 2 seconds
     if (seconds_elapsed % SERVO_UPDATE_DELAY == 1) update_servo = true;
 
@@ -297,8 +299,8 @@ void ofApp::keyPressed(int key){
         button_pressed = !button_pressed;
         
         if (button_pressed){
-            // export_dots_to_csv(red_dots_positions, "red_dots.csv");
-            // export_dots_to_csv(black_dots_positions, "black_dots.csv");
+            // export_dots_to_csv(midtones_dots_positions, "red_dots.csv");
+            // export_dots_to_csv(darker_dots_positions, "black_dots.csv");
             ofLogNotice() << "button pressed!";
 
             // people pressed the red button, fun is coming!
@@ -319,7 +321,7 @@ void ofApp::keyPressed(int key){
 //--------------------------------------------------------------
 void ofApp::send_current_command(int i){
 
-    auto pos = red_dots_positions.at(i);
+    auto pos = midtones_dots_positions.at(i);
 
     // Create a byte buffer.
     // ofx::IO::ByteBuffer buffer('M' + ofToString(pos.x) + ',' + ofToString(pos.y));
@@ -331,7 +333,7 @@ void ofApp::send_current_command(int i){
 
     sent_command = ss.str();
 
-    ofLogNotice() << "sending " << sent_command << ", " << current_command_index+1 << "/" << ofToString(red_dots_positions.size());
+    ofLogNotice() << "sending " << sent_command << ", " << current_command_index+1 << "/" << ofToString(midtones_dots_positions.size());
 
     ofx::IO::ByteBuffer buffer(sent_command);
 
@@ -365,7 +367,7 @@ void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs& args){
     // check if the received message is the one we sent
     // if yes, then send the next message
     
-    if (current_command_index <= red_dots_positions.size() - 1){
+    if (current_command_index <= midtones_dots_positions.size() - 1){
         if (sent_command == received_command){
             send_current_command(++current_command_index);
         }

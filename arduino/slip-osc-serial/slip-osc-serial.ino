@@ -1,26 +1,13 @@
-/*
-  SLIP-OSC.ino
-  listen on USB Serial for slip encoded OSC packet
-  to switch an LED on and off
-  Depends on [PacketSerial](https://github.com/bakercp/PacketSerial)
-  and [OSC](https://github.com/CNMAT/OSC/) libraries.
-  Copyright Antoine Villeret - 2015
-*/
-#include <OSCBundle.h>
-#include <PacketSerial.h>
+#include <OSCBundle.h> .   // Copyright Antoine Villeret - 2015
+#include <PacketSerial.h>  // library by bakercp - https://github.com/bakercp/PacketSerial
 
+const int PACKET_SERIAL_BUFFER_SIZE = 128;
 
-PacketSerial_<SLIP, SLIP::END, 128> serial;
-
-const uint8_t LED_PIN = 13;
+PacketSerial_<SLIP, SLIP::END, PACKET_SERIAL_BUFFER_SIZE> serial;
 
 void setup(){
   serial.setPacketHandler(&onPacket);
-  serial.begin(115200);
-
-  pinMode(LED_PIN, OUTPUT);
-
-  digitalWrite(LED_PIN, LOW);
+  serial.begin(9600);
 }
 
 void loop(){
@@ -28,6 +15,8 @@ void loop(){
   serial.update();
 }
 
+
+// SERIAL communication
 void onPacket(const uint8_t* buffer, size_t size){
   OSCBundle bundle;
   bundle.fill(buffer, size);
@@ -39,9 +28,9 @@ void onPacket(const uint8_t* buffer, size_t size){
   }
 }
 
+// OSC message handlers
+// STEPPERS
 void on_stepper(OSCMessage& msg){
-
-  digitalWrite(LED_PIN, LOW);
 
   String message = "stepperx:";
   
@@ -62,9 +51,10 @@ void on_stepper(OSCMessage& msg){
   serial.send(message_buffer, 16);
 }
 
+// HOMING
 void on_home(OSCMessage& msg){
   if (msg.isInt(0)){
-    digitalWrite(LED_PIN, HIGH);
+    // TODO: home motors
     serial.send("home", 4);
   }
 }

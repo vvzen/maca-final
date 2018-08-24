@@ -39,7 +39,7 @@ class ofApp : public ofBaseApp{
 		bool send_command_pressed;
 		
 		// SERIAL
-		const int BAUD_RATE = 115200;
+		const int BAUD_RATE = 9600;
 
 		std::string sent_command;
 		

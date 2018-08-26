@@ -1,15 +1,49 @@
 #pragma once
 
 #include "ofMain.h"
-#include "ofxGui.h"
+#include "ofxSerial.h"
+#include "ofEvents.h"
+#include "ofxOsc.h"
 #include "ofxCv.h"
 
 class ofApp : public ofBaseApp{
 public:
-	void setup();
-	void update();
-	void draw();
-	
+	void setup() override;
+	void update() override;
+	void draw() override;
+	void exit() override;
+
+	// PS3 EYE CAMERA
+	const int cam_width = 640;
+	const int cam_height = 480;
+
+	// OPENCV
+	void run_coherent_line_drawing(ofImage& in, ofImage& out, ofFbo& dots_fbo);
+
 	ofImage input_image, output_image;
-	ofFbo small_dots_fbo, big_dots_fbo;
+	ofFbo dots_fbo;
+	// coherent line drawing parameters
+	int halfw = 6;
+	int smooth_passes = 1;
+	float sigma1 = 4.50; // degree of coherence
+	float sigma2 = 0.95905;
+	float tau = 0.98;
+	int black = -8;
+	int threshold = 164;
+	vector<glm::vec2> dots;
+
+	// SERIAL
+	const int BAUD_RATE = 9600;
+	
+	ofxIO::SLIPPacketSerialDevice serial_device;
+
+	// ofxSerial events
+	void onSerialBuffer(const ofxIO::SerialBufferEventArgs& args);
+	void onSerialError(const ofxIO::SerialBufferErrorEventArgs& args);
+
+private:
+	// OSC STUFF
+	void start_transmission(); // actually start the whole painting process
+	void send_osc_bundle(ofxOscMessage &m, int buffer_size);
+	void append_message(ofxOscMessage& message, osc::OutboundPacketStream& p );
 };

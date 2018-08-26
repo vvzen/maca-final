@@ -67,6 +67,8 @@ void setup() {
 
   delay(1000);
 
+  move_y_motors(200, UP, false);
+
   serial.send("ready", 5);
 }
 
@@ -184,9 +186,8 @@ void shoot_servo(){
 //////////////////////////////////////////
 void move_one_step(int motor_pin){
   digitalWrite(motor_pin, HIGH);
-  delayMicroseconds(500);
   digitalWrite(motor_pin, LOW);
-  delayMicroseconds(500);
+  delayMicroseconds(1000);
 }
 
 //////////////// HOMING ////////////////
@@ -233,7 +234,7 @@ void home_motors(){
   digitalWrite(dir_pins[1], HIGH);
 
   // move y down a little bit
-  move_y_motors(50, false, false);
+  move_y_motors(50, DOWN, false);
 
   // save the new current pos
   current_pos[0] = 0;

@@ -34,8 +34,12 @@ public:
 
 	// SERIAL
 	const int BAUD_RATE = 9600;
-	
-	ofxIO::SLIPPacketSerialDevice serial_device;
+	void init_serial_devices(ofxIO::SLIPPacketSerialDevice& device1, ofxIO::SLIPPacketSerialDevice& device2);
+	void send_current_command(int i); // used to send commands to the paintball machine
+	int current_command_index; // keeps track of the current command that we're sending
+
+	ofxIO::SLIPPacketSerialDevice cnc_device;
+	ofxIO::SLIPPacketSerialDevice cam_servo_device;
 
 	// ofxSerial events
 	void onSerialBuffer(const ofxIO::SerialBufferEventArgs& args);
@@ -43,7 +47,8 @@ public:
 
 private:
 	// OSC STUFF
-	void start_transmission(); // actually start the whole painting process
-	void send_osc_bundle(ofxOscMessage &m, int buffer_size);
-	void append_message(ofxOscMessage& message, osc::OutboundPacketStream& p );
+	 // add our osc message to the osc bundle
+	void append_message(ofxOscMessage& message, osc::OutboundPacketStream& p);
+	 // send the osc bundle via serial
+	void send_osc_bundle(ofxOscMessage &m, ofxIO::SLIPPacketSerialDevice& device, int buffer_size);
 };

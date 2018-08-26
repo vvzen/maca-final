@@ -1,10 +1,17 @@
 #include <OSCBundle.h> .   // Copyright Antoine Villeret - 2015
 #include <PacketSerial.h> // library by bakercp - https://github.com/bakercp/PacketSerial
 //#include <Wire.h>
+#include <Servo.h>
 
 // SERIAL communication
 const int PACKET_SERIAL_BUFFER_SIZE = 128;
 PacketSerial_<SLIP, SLIP::END, PACKET_SERIAL_BUFFER_SIZE> serial;
+
+// TRIGGER
+Servo servo;
+const int SERVO_PIN = 12;
+const int SERVO_SHOOT_POS = 0;
+const int SERVO_HOME_POS = 90;
 
 // MOTORS
 // these arrays contain the values for the three motors.
@@ -12,7 +19,7 @@ PacketSerial_<SLIP, SLIP::END, PACKET_SERIAL_BUFFER_SIZE> serial;
 const int NUM_MOTORS = 3;
 int dir_pins[]          = {23, 39, 2};    // direction pins of the motors
 int step_pins[]         = {27, 43, 4};    // step pins of the motors
-int enable_pins[]       = {31, 47};       // enable pins of the motors
+int enable_pins[]       = {31, 47, 10};       // enable pins of the motors
 int switch_pins[]       = {35, 51, 8};    // switch pins for each axis
 
 // just using some vars for a better readability
@@ -26,28 +33,29 @@ int current_pos[2];
 
 const int STEPS_PER_ROTATION = 200;
 // FIXME: with the current pulley I get a decimal amount of steps per mm, which is not good
-const int STEPS_PER_MM = 3; // see compute_linear_distance_from_steps.py
-const int STEPS_PER_10MM = 9;
-// 9 steps equal 10 mm
+const int STEPS_PER_MM = 5; // see compute_linear_distance_from_steps.py
 
 void setup() {
-  
+
+  // Initialise servo pin
+  servo.attach(SERVO_PIN);
+  delay(15);
+  servo.write(SERVO_HOME_POS);
+
+  // Initialise motors pins
   for (int i = 0; i < NUM_MOTORS; i++){
     
     // set the switchs as input pullup
     pinMode(switch_pins[i], INPUT_PULLUP);
+
+    // set enable pins to LOW
+    pinMode(enable_pins[i], OUTPUT);
+    digitalWrite(enable_pins[i], LOW);
     
     // set the motors pins as output
     pinMode(dir_pins[i], OUTPUT);
     pinMode(step_pins[i], OUTPUT);
   }
-
-  // set enable pins for y axis to LOW
-  pinMode(enable_pins[0], OUTPUT);
-  pinMode(enable_pins[1], OUTPUT);
-
-  digitalWrite(enable_pins[0], LOW);
-  digitalWrite(enable_pins[1], LOW);
   
   // serial
   serial.setPacketHandler(&on_packet_received);
@@ -57,23 +65,16 @@ void setup() {
   current_pos[0] = -1;
   current_pos[1] = -1;
 
-  move_x_motor(100, LEFT, true);
-
-  move_y_motors(200, UP, true);
-
-  move_x_motor(100, RIGHT, true);
-
-  move_y_motors(200, DOWN, true);
-
-  //move_x_motor(100, false);
-  //home_motors();
-  //test_motors();
-  //move_y_motors(200, false);
-
   delay(1000);
+
+  serial.send("ready", 5);
 }
 
 void loop() {
+
+  // keep servo at the home position
+  servo.write(SERVO_HOME_POS);
+  delay(15);
   
   // read any incoming serial data (see on_packet_received() )
   serial.update();
@@ -88,10 +89,29 @@ void on_packet_received(const uint8_t* buffer, size_t size){
   if (!bundle.hasError()){
     bundle.dispatch("/home", on_home);
     bundle.dispatch("/stepper", on_stepper);
+    bundle.dispatch("/shoot", on_shoot);
   }
 }
 
-// OSC message handlers
+void debug_switches(){
+  String messagex = "switchX:";
+  String messagey = "switchYL: ";
+  messagey += digitalRead(switch_pins[0]);
+  messagey += " R: ";
+  messagey += digitalRead(switch_pins[1]);
+}
+
+//////////////////////////////////////////
+////////// OSC message handlers //////////
+//////////////////////////////////////////
+
+// SHOOT
+void on_shoot(OSCMessage& msg){
+  if (msg.isInt(0)){
+    shoot_servo();
+    serial.send("shoot", 5);
+  }
+}
 // STEPPERS
 void on_stepper(OSCMessage& msg){
 
@@ -143,7 +163,25 @@ void on_home(OSCMessage& msg){
   }
 }
 
-// MOTORS MOVEMENT
+//////////////////////////////////////////
+///////////// SERVO TRIGGER //////////////
+//////////////////////////////////////////
+void shoot_servo(){
+  // shoot
+  for (int i = SERVO_HOME_POS; i < SERVO_SHOOT_POS; i--){
+    servo.write(i);
+    delay(10);
+  }
+  // and come back home
+  for (int i = SERVO_SHOOT_POS; i < SERVO_HOME_POS; i++){
+    servo.write(i);
+    delay(10);
+  }
+}
+
+//////////////////////////////////////////
+///////////// MOTORS MOVEMENT ////////////
+//////////////////////////////////////////
 void move_one_step(int motor_pin){
   digitalWrite(motor_pin, HIGH);
   delayMicroseconds(500);
@@ -151,7 +189,7 @@ void move_one_step(int motor_pin){
   delayMicroseconds(500);
 }
 
-// MOTORS HOMING
+//////////////// HOMING ////////////////
 void home_motors(){
 
   // set motors direction up
@@ -171,7 +209,7 @@ void home_motors(){
   }
   
   // then put it at the center
-  move_x_motor(100, true, false);
+  move_x_motor(400, true, false);
 
   // finally home the other ones
   while (true){
@@ -202,6 +240,7 @@ void home_motors(){
   current_pos[1] = 0;
 }
 
+///////////// MOVE X STEPPER /////////////
 // @amount --> movement in mm
 // @dir    --> true for right, false for left
 // @check  --> if you need to check the end stops
@@ -227,6 +266,7 @@ void move_x_motor(int amount, bool dir, bool check){
   }
 }
 
+///////////// MOVE Y STEPPERS ////////////
 // @amount --> movement in mm
 // @dir    --> true for up, false for down
 // @check  --> if you need to check the end stops
@@ -282,84 +322,5 @@ void test_motors(){
     }
     delay(1000);
   }
-}
-
-/*
-// SERIAL
-// When an encoded packet is received and decoded, it will be delivered here.
-// The `buffer` is a pointer to the decoded byte array. `size` is the number of
-// bytes in the `buffer`.
-void on_packet_received(const uint8_t * buff, size_t buff_size){
-
-  // make a temporary buffer
-  uint8_t temp_buffer[buff_size];
-
-  // copy the received packet into our buffer
-  memcpy(temp_buffer, buff, buff_size);
-
-  // send back same message
-  serial.send(temp_buffer, buff_size);
-
-  if (temp_buffer[0] == 'M'){
-    handle_move_command(temp_buffer, buff_size);
-  }
-  if (temp_buffer[0] == 'H'){
-    handle_home_command(temp_buffer, buff_size);
-  }
-  
-  //delay(1000);
-}
-*/
-
-void handle_home_command(const uint8_t * buff, size_t buff_size){
-  home_motors();
-  serial.send("home", 4);
-}
-
-void handle_move_command(const uint8_t * buff, size_t buff_size){
-
-  int x_move = 0;
-  int y_move = 0;
-
-  String x_move_string;
-  x_move_string[0] = buff[2];
-  x_move_string[1] = buff[3];
-  x_move_string[2] = buff[4];
-  x_move_string[3] = '\0';
-  String y_move_string;
-  y_move_string[0] = buff[6];
-  y_move_string[1] = buff[7];
-  y_move_string[2] = buff[8];
-  y_move_string[3] = '\0';
-
-  x_move = x_move_string.toInt();
-  y_move = y_move_string.toInt();
-  
-  // parse the command
-  // sscanf is safe here because we know that the buffer has fixed length
-  //sscanf(buff, "MX%dY%d", &x_move, &y_move);
-
-  // FIXME:
-  // This could definitely be optimized, but for now it works
-  // (and premature optimization is the root of all evil)
-
-//  String x_move_string = String(x_move);
-//  String y_move_string = String(y_move);
-  
-  //x_move_string.toCharArray(x_move_buffer, 4);
-  //y_move_string.toCharArray(y_move_buffer, 4);
-
-  //move_y_motors(y_move, false);
-  //move_x_motor(x_move, true);
-
-  char x_move_buffer[4];
-  char y_move_buffer[4];
-  x_move_string.toCharArray(x_move_buffer, 4);
-  y_move_string.toCharArray(y_move_buffer, 4);
-  
-  serial.send("x move:", 6);
-  serial.send(x_move_buffer, 4);
-  serial.send("y move:", 6);
-  serial.send(y_move_buffer, 4);
 }
 

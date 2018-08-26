@@ -11,11 +11,13 @@ void ofApp::setup(){
     gui.add(gui_stepper_y_pos.set("Stepper motor Y position", Y_MIN_POS, Y_MIN_POS, Y_MAX_POS));
     gui.add(gui_send_move_command.setup("Send Command"));
     gui.add(gui_send_gethome_command.setup("Get Home"));
+    gui.add(gui_shoot_command.setup("Shoot!"));
 
     gui_stepper_x_pos.addListener(this, &ofApp::on_stepper_x_pos_changed);
     gui_stepper_y_pos.addListener(this, &ofApp::on_stepper_y_pos_changed);
     gui_send_move_command.addListener(this, &ofApp::on_send_command_pressed);
     gui_send_gethome_command.addListener(this, &ofApp::on_send_gethome_pressed);
+    gui_shoot_command.addListener(this, &ofApp::on_shoot_pressed);
 
     stepper_pos = glm::vec2(0, 0);
     send_command_pressed = false;
@@ -96,15 +98,6 @@ void ofApp::on_send_command_pressed(){
     
     send_command_pressed = true;
 
-    // Format the command
-    // std::ostringstream command;
-    // command << "MX" << std::setw(3) << std::setfill('0') << stepper_pos.x; // setw and setfill are used to add 3 leading zeroes
-    // command << "Y" << std::setfill('0') << stepper_pos.y;
-
-    // // Send it to the arduino
-    // ofx::IO::ByteBuffer buffer(command.str());
-    // serial_device.send(buffer);
-
     ofxOscMessage osc_message;
     osc_message.setAddress("/stepper");
     osc_message.addIntArg(stepper_pos.x);
@@ -118,15 +111,22 @@ void ofApp::on_send_command_pressed(){
 
 //--------------------------------------------------------------
 void ofApp::on_send_gethome_pressed(){
-    // std::ostringstream command;
-    // command << "H";
-    // ofx::IO::ByteBuffer buffer(command.str());
-    // ofLogNotice() << "sending home: " << command.str();
-    // serial_device.send(buffer);
 
     ofxOscMessage osc_message;
     osc_message.setAddress("/home");
     osc_message.addIntArg(1);
+
+    send_osc_bundle(osc_message, 1024);
+}
+
+//--------------------------------------------------------------
+void ofApp::on_shoot_pressed(){
+
+    ofxOscMessage osc_message;
+    osc_message.setAddress("/shoot");
+    osc_message.addIntArg(1);
+
+    ofLogNotice() << "command: " << "/shoot " << 1;
 
     send_osc_bundle(osc_message, 1024);
 }
@@ -141,8 +141,8 @@ void ofApp::send_osc_bundle(ofxOscMessage &m, int buffer_size){
     osc::OutboundPacketStream p(buffer, buffer_size);
     
     p << osc::BeginBundleImmediate; // start the bundle
-    append_message(m, p); // add the osc message to the bundle
-    p << osc::EndBundle; // end the bundle
+    append_message(m, p);           // add the osc message to the bundle
+    p << osc::EndBundle;            // end the bundle
 
     // send to device
     serial_device.send(ofxIO::ByteBuffer(p.Data(), p.Size()));

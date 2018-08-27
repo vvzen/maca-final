@@ -1,10 +1,15 @@
 #pragma once
 
 #include "ofMain.h"
+#include "ofxCv.h"
 #include "ofxSerial.h"
 #include "ofEvents.h"
 #include "ofxOsc.h"
-#include "ofxCv.h"
+
+struct SerialMessage{
+    std::string message;
+    std::string exception;
+};
 
 class ofApp : public ofBaseApp{
 public:
@@ -13,12 +18,14 @@ public:
 	void draw() override;
 	void exit() override;
 
+	void keyPressed(int k) override;
+
 	// PS3 EYE CAMERA
 	const int cam_width = 640;
 	const int cam_height = 480;
 
 	// OPENCV
-	void run_coherent_line_drawing(ofImage& in, ofImage& out, ofFbo& dots_fbo);
+	void run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &dots_fbo);
 
 	ofImage input_image, output_image;
 	ofFbo dots_fbo;
@@ -34,21 +41,23 @@ public:
 
 	// SERIAL
 	const int BAUD_RATE = 9600;
-	void init_serial_devices(ofxIO::SLIPPacketSerialDevice& device1, ofxIO::SLIPPacketSerialDevice& device2);
+	void init_serial_devices(ofxIO::SLIPPacketSerialDevice &device1);
 	void send_current_command(int i); // used to send commands to the paintball machine
 	int current_command_index; // keeps track of the current command that we're sending
+	const int SERIAL_INITIAL_DELAY_TIME = 5; // seconds
+
+	bool homed;
 
 	ofxIO::SLIPPacketSerialDevice cnc_device;
-	ofxIO::SLIPPacketSerialDevice cam_servo_device;
 
 	// ofxSerial events
-	void onSerialBuffer(const ofxIO::SerialBufferEventArgs& args);
-	void onSerialError(const ofxIO::SerialBufferErrorEventArgs& args);
+	void onSerialBuffer(const ofxIO::SerialBufferEventArgs &args);
+	void onSerialError(const ofxIO::SerialBufferErrorEventArgs &args);
 
 private:
 	// OSC STUFF
 	 // add our osc message to the osc bundle
-	void append_message(ofxOscMessage& message, osc::OutboundPacketStream& p);
+	void append_message(ofxOscMessage &message, osc::OutboundPacketStream &p);
 	 // send the osc bundle via serial
-	void send_osc_bundle(ofxOscMessage &m, ofxIO::SLIPPacketSerialDevice& device, int buffer_size);
+	void send_osc_bundle(ofxOscMessage &m, ofxIO::SLIPPacketSerialDevice &device, int buffer_size);
 };

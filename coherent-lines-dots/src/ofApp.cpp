@@ -5,18 +5,20 @@ using namespace cv;
 
 //--------------------------------------------------------------
 void ofApp::setup() {
-    
-	ofBackground(255);
+
+	ofSetLogLevel(OF_LOG_VERBOSE);
+
+	homed = false;
 
 	// set the logging to a file
-	ofLogToFile("paintball.log");
+	//ofLogToFile("paintball.log");
 
 	// load input image
 	input_image.load("test-camsize.jpg");
 	input_image.setImageType(OF_IMAGE_GRAYSCALE);
 	
 	// connect to the 2 arduinos
-	init_serial_devices(cnc_device, cam_servo_device);
+	init_serial_devices(cnc_device);
 
 	current_command_index = 0;
 
@@ -24,14 +26,28 @@ void ofApp::setup() {
 
 	// filter the image
 	run_coherent_line_drawing(input_image, output_image, dots_fbo);
-
-	// start to send the values over serial
-	send_current_command(current_command_index);
 }
 
 //--------------------------------------------------------------
 void ofApp::update(){
 
+	// wait 5 seconds before sending the homing message
+	if ((int) ofGetElapsedTimef() < SERIAL_INITIAL_DELAY_TIME+1){
+		int elapsed_time = (int) ofGetElapsedTimef();
+		ofLogNotice() << "elapsed time: " << elapsed_time;
+
+		if (elapsed_time == SERIAL_INITIAL_DELAY_TIME && !homed){
+			ofLogNotice() << "sending home";
+			
+			ofxOscMessage osc_message;
+    		osc_message.setAddress("/home");
+    		osc_message.addIntArg(1);
+
+			send_osc_bundle(osc_message, cnc_device, 1024);
+
+			homed = true;
+		}
+	}
 }
 
 //--------------------------------------------------------------
@@ -46,23 +62,31 @@ void ofApp::draw(){
 }
 
 //--------------------------------------------------------------
+void ofApp::keyPressed(int k){
+
+}
+
+//--------------------------------------------------------------
 // SERIAL
 //--------------------------------------------------------------
-void ofApp::init_serial_devices(ofxIO::SLIPPacketSerialDevice& device1, ofxIO::SLIPPacketSerialDevice& device2){
-	auto devices_info = ofxIO::SerialDeviceUtils::listDevices();
+void ofApp::init_serial_devices(ofxIO::SLIPPacketSerialDevice &cnc){
+
+	std::vector<ofxIO::SerialDeviceInfo> devices_info = ofxIO::SerialDeviceUtils::listDevices();
 
 	// log connected devices
     ofLogNotice("ofApp::setup") << "Connected devices: ";
-    for (std::size_t i = 0; i < devices_info.size(); ++i){ ofLogVerbose("ofApp::setup") << "\t" << devices_info[i]; }
+    for (std::size_t i = 0; i < devices_info.size(); ++i){
+		ofLogNotice("ofApp::setup") << "\t" << devices_info[i];
+	}
 
 	if (!devices_info.empty()){
 
-        // Connect to the matching device.
-        bool success = device1.setup(devices_info[0], BAUD_RATE);
+        // Connect the devices
+        bool success_1 = cnc.setup(devices_info[0], BAUD_RATE);
 
-        if (success){
-            device1.registerAllEvents(this);
-            ofLogVerbose("ofApp::setup") << "Successfully setup " << devices_info[0];
+        if (success_1){
+            cnc.registerAllEvents(this);
+            ofLogNotice("ofApp::setup") << "Successfully setup " << devices_info[0];
         }
         else ofLogError("ofApp::setup") << "Unable to setup " << devices_info[0];
     }
@@ -81,15 +105,16 @@ void ofApp::send_current_command(int i){
 
     ofLogNotice("send_current_command") << "/stepper " << pos.x << " " << pos.y << " - " << current_command_index+1 << "/" << ofToString(dots.size());
 
-    // check onSerialBuffer to see what happens after we sent a command
+    // check onSerialBuffer() to see what happens after we sent a command
+	send_osc_bundle(osc_message, cnc_device, 1024);
 }
 
 //--------------------------------------------------------------
 // OPENCV
 //--------------------------------------------------------------
-void ofApp::run_coherent_line_drawing(ofImage &in, ofImage &out, ofFbo& dots_fbo){
+void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &dots_fbo){
 	
-	// Reset deque
+	// Reset vector
 	dots.clear();
 
 	// Do the coherent line drawing magic
@@ -127,7 +152,7 @@ void ofApp::run_coherent_line_drawing(ofImage &in, ofImage &out, ofFbo& dots_fbo
 //--------------------------------------------------------------
 // OSC
 //--------------------------------------------------------------
-void ofApp::append_message(ofxOscMessage& message, osc::OutboundPacketStream& p){
+void ofApp::append_message(ofxOscMessage &message, osc::OutboundPacketStream &p){
 
     p << osc::BeginMessage(message.getAddress().data());
 
@@ -176,8 +201,8 @@ void ofApp::append_message(ofxOscMessage& message, osc::OutboundPacketStream& p)
 }
 
 //--------------------------------------------------------------
-void ofApp::send_osc_bundle(ofxOscMessage &m, ofxIO::SLIPPacketSerialDevice& device, int buffer_size){
-    // this code come from ofxOscSender::sendMessage in ofxOscSender.cpp
+void ofApp::send_osc_bundle(ofxOscMessage &m, ofxIO::SLIPPacketSerialDevice &device, int buffer_size){
+    // this codes come from ofxOscSender::sendMessage in ofxOscSender.cpp
     // static const int OUTPUT_BUFFER_SIZE = buffer_size;
     char buffer[buffer_size];
 
@@ -195,30 +220,48 @@ void ofApp::send_osc_bundle(ofxOscMessage &m, ofxIO::SLIPPacketSerialDevice& dev
 //--------------------------------------------------------------
 // SERIAL
 //--------------------------------------------------------------
-void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs& args){
+void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs &args){
     
 	std::string received_command = args.buffer().toString();
 	ofLogNotice("onSerialBuffer") << "received message: " << received_command;
 
-	// The arduino sends us back a string formatted like that: "stepperx:valuey:value"
-	// so we recreate artificially a similar string and we check if it's equal to the arduino message
-	std::ostringstream sent_message_values;
-	glm::vec2 current_pos = dots.at(current_command_index);
-	sent_message_values << "stepperx:" << current_pos.x << "y:" << current_pos.y;
+	if (received_command == "home"){
+		ofLogNotice("onSerialBuffer") << "homing done, starting";
+		// start the painting by sending the values over serial
+		// send_current_command(current_command_index);
+	}
+	else {
+		// check if we need to send more messages
+		if (current_command_index <= dots.size() - 1){
 
-	// check if we need to send more messages
-	if (current_command_index <= dots.size() - 1){
-		// if arduino received the same message that we sent then send the next message
-        if (received_command == sent_message_values.str()) send_current_command(++current_command_index);
-    }
-    else {
-        ofLogNotice() << "sent all commands!";
-        current_command_index = 0;
-    }
+			// The arduino sends us back a string formatted like that: "stepperx:valuey:value"
+			// so we recreate artificially a similar string and we check if it's equal to the arduino message
+			std::ostringstream sent_message_values;
+			glm::vec2 current_pos = dots.at(current_command_index);
+			sent_message_values << "stepperx:" << current_pos.x << "y:" << current_pos.y;
+
+			ofLogNotice("onSerialBuffer") << "sent:     " << sent_message_values.str();
+			ofLogNotice("onSerialBuffer") << "received: " << received_command;
+
+			// if arduino received the same message that we sent then send the next message
+			if (received_command == sent_message_values.str()){
+
+				ofLogNotice("onSerialBuffer") << "all good";
+				//send_current_command(++current_command_index);
+			}
+			else {
+				ofLogError("onSerialBuffer") << "we received a different message than the sent one";
+			}
+		}
+		else {
+			ofLogNotice("onSerialBuffer") << "sent all commands!";
+			current_command_index = 0;
+		}
+	}
 }
 
 //--------------------------------------------------------------
-void ofApp::onSerialError(const ofx::IO::SerialBufferErrorEventArgs& args){
+void ofApp::onSerialError(const ofx::IO::SerialBufferErrorEventArgs &args){
     // Errors and their corresponding buffer (if any) will show up here.
     ofLogError("onSerialError") << "Serial error : " << args.exception().displayText();
 }
@@ -228,5 +271,5 @@ void ofApp::onSerialError(const ofx::IO::SerialBufferErrorEventArgs& args){
 //--------------------------------------------------------------
 void ofApp::exit(){
 	cnc_device.unregisterAllEvents(this);
-	cam_servo_device.unregisterAllEvents(this);
+	// cam_servo_device.unregisterAllEvents(this);
 }

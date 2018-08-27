@@ -26,6 +26,7 @@ public:
 
 	// OPENCV
 	void run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &dots_fbo);
+	const float PX_TO_MM_RATIO = 1.25;
 
 	ofImage input_image, output_image;
 	ofFbo dots_fbo;

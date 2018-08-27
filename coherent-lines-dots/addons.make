@@ -1,4 +1,5 @@
 ofxCv
+ofxGui
 ofxIO
 ofxKinect
 ofxOpenCv

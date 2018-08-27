@@ -64,12 +64,6 @@ void setup() {
   // set the current pos to a negative number so we know we're not home
   current_pos[0] = -1;
   current_pos[1] = -1;
-
-  delay(1000);
-
-  move_y_motors(200, UP, false);
-
-  serial.send("ready", 5);
 }
 
 void loop() {
@@ -80,6 +74,8 @@ void loop() {
   
   // read any incoming serial data (see on_packet_received() )
   serial.update();
+
+  //debug_switches();
 }
 
 // SERIAL communication
@@ -96,11 +92,17 @@ void on_packet_received(const uint8_t* buffer, size_t size){
 }
 
 void debug_switches(){
-  String messagex = "switchX:";
-  String messagey = "switchYL: ";
+  //String messagex = "switchX:";
+  //messagex += digitalRead(switch_pins[2]);
+  String messagey = "switchYL:";
   messagey += digitalRead(switch_pins[0]);
-  messagey += " R: ";
+  messagey += "R:";
   messagey += digitalRead(switch_pins[1]);
+
+  char message_buffer[14];
+  messagey.toCharArray(message_buffer, 14);
+  
+  serial.send(message_buffer, 14);
 }
 
 //////////////////////////////////////////
@@ -121,7 +123,6 @@ void on_stepper(OSCMessage& msg){
 
   int new_pos[2];
 
-
   // X
   if (msg.isInt(0)){
     // compose the message for debugging
@@ -133,7 +134,7 @@ void on_stepper(OSCMessage& msg){
     // check direction (if + go right, if - go left)
     bool dir = (required_movement >= 0) ? RIGHT : LEFT;
     // move the motor
-    move_x_motor(abs(required_movement), dir, true);
+    //move_x_motor(abs(required_movement), dir, true);
     // update current pos
     current_pos[0] = new_pos[0];
   }
@@ -147,21 +148,31 @@ void on_stepper(OSCMessage& msg){
     // check direction (if + go down, if - go up)
     bool dir = (required_movement >= 0) ? DOWN : UP;
     // move the motor
-    move_y_motors(abs(required_movement), dir, true);
-    // update current pos
+    //move_y_motors(abs(required_movement), dir, true);
+    // update current posh
     current_pos[1] = new_pos[1];
   }
 
-  char message_buffer[16];
-  message.toCharArray(message_buffer, 16);
+  // SHOOT
+  delay(100);
+  //shoot_servo();
+  delay(100);
+
+  char message_buffer[18];
+  // fill the buffer with the \r char in order to avoid garbage
+  // (the \r char is going to be stripped away by the of app)
+  for (int i = 0; i < 18; i++){
+    message_buffer[i] = '\r';
+  }
+  message.toCharArray(message_buffer, 18);
   // let the of app know we've received stuff
-  serial.send(message_buffer, 16);
+  serial.send(message_buffer, 18);
 }
 
 void on_home(OSCMessage& msg){
   if (msg.isInt(0)){
+    //home_motors();
     serial.send("home", 4);
-    home_motors();
   }
 }
 
@@ -208,8 +219,11 @@ void home_motors(){
     // exit condition
     if (x_switch_value == true) break;
   }
+
+  // save the new current pos
+  current_pos[0] = 0;
   
-  // then put it at the center
+  // then put it at the center (to balance the weight)
   move_x_motor(400, true, false);
 
   // finally home the other ones
@@ -237,7 +251,6 @@ void home_motors(){
   move_y_motors(50, DOWN, false);
 
   // save the new current pos
-  current_pos[0] = 0;
   current_pos[1] = 0;
 }
 

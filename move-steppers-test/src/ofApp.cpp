@@ -213,8 +213,10 @@ void ofApp::onSerialError(const ofx::IO::SerialBufferErrorEventArgs& args){
 
 //--------------------------------------------------------------
 void ofApp::exit(){
-	gui_stepper_x_pos.removeListener(this,&ofApp::on_stepper_x_pos_changed);
-	gui_stepper_y_pos.removeListener(this,&ofApp::on_stepper_y_pos_changed);
-	gui_send_move_command.removeListener(this,&ofApp::on_send_command_pressed);
+	gui_stepper_x_pos.removeListener(this, &ofApp::on_stepper_x_pos_changed);
+	gui_stepper_y_pos.removeListener(this, &ofApp::on_stepper_y_pos_changed);
+	gui_send_move_command.removeListener(this, &ofApp::on_send_command_pressed);
+    gui_send_gethome_command.removeListener(this, &ofApp::on_send_gethome_pressed);
+    gui_shoot_command.addListener(this, &ofApp::on_shoot_pressed);
     serial_device.unregisterAllEvents(this);
 }

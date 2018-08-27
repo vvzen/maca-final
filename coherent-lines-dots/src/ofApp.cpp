@@ -139,12 +139,24 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 			if (c.r == 255){
 				ofSetColor(ofColor::orange);
 				ofDrawCircle(x, y, circle_size);
-				dots.push_back(glm::vec2(x, y));
+				dots.push_back(glm::vec2(round(x * PX_TO_MM_RATIO), round(y * PX_TO_MM_RATIO)));
 			}
 		}
 	}
 
 	dots_fbo.end();
+
+	// just to be sure, sort the points in the vector
+	glm::vec2 origin(0, 0);
+	std::sort(dots.begin(), dots.end(), [origin](const glm::vec2 &lhs, const glm::vec2 &rhs){
+		return ofDist(origin.x, origin.y, lhs.x, lhs.y) < ofDist(origin.x, origin.y, rhs.x, rhs.y);
+	});
+
+	// for debug, save the points to a csv file
+	ofFile dots_file("dots.csv", ofFile::WriteOnly);
+	for (auto d : dots){
+		dots_file << d.x << ',' << d.y << endl;
+	}
 
 	ofLogNotice("run_coherent_line_drawing()") << "completed";
 }
@@ -223,39 +235,51 @@ void ofApp::send_osc_bundle(ofxOscMessage &m, ofxIO::SLIPPacketSerialDevice &dev
 void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs &args){
     
 	std::string received_command = args.buffer().toString();
-	ofLogNotice("onSerialBuffer") << "received message: " << received_command;
+	ofLogNotice("onSerialBuffer") << "received message --> " << received_command;
 
-	if (received_command == "home"){
-		ofLogNotice("onSerialBuffer") << "homing done, starting";
-		// start the painting by sending the values over serial
-		// send_current_command(current_command_index);
+	// remove \r , \n and \0 chars from received message
+	received_command.erase(std::remove(received_command.begin(), received_command.end(), '\n'), received_command.end());
+	received_command.erase(std::remove(received_command.begin(), received_command.end(), '\r'), received_command.end());
+	received_command.erase(std::remove(received_command.begin(), received_command.end(), '\0'), received_command.end());
+
+	// filter out the switch debugging messages
+	if (received_command.substr(0, 6) == "switch"){
+		// TODO:
 	}
 	else {
-		// check if we need to send more messages
-		if (current_command_index <= dots.size() - 1){
-
-			// The arduino sends us back a string formatted like that: "stepperx:valuey:value"
-			// so we recreate artificially a similar string and we check if it's equal to the arduino message
-			std::ostringstream sent_message_values;
-			glm::vec2 current_pos = dots.at(current_command_index);
-			sent_message_values << "stepperx:" << current_pos.x << "y:" << current_pos.y;
-
-			ofLogNotice("onSerialBuffer") << "sent:     " << sent_message_values.str();
-			ofLogNotice("onSerialBuffer") << "received: " << received_command;
-
-			// if arduino received the same message that we sent then send the next message
-			if (received_command == sent_message_values.str()){
-
-				ofLogNotice("onSerialBuffer") << "all good";
-				//send_current_command(++current_command_index);
-			}
-			else {
-				ofLogError("onSerialBuffer") << "we received a different message than the sent one";
-			}
+		if (received_command == "home"){
+			
+			ofLogNotice("onSerialBuffer") << "homing done, starting";
+			// start the painting by sending the values over serial
+			send_current_command(current_command_index);
 		}
 		else {
-			ofLogNotice("onSerialBuffer") << "sent all commands!";
-			current_command_index = 0;
+			// check if we need to send more messages
+			if (current_command_index <= dots.size() - 2){
+
+				// The arduino sends us back a string formatted like that: "stepperx:valuey:value"
+				// so we recreate artificially a similar string and we check if it's equal to the arduino message
+				std::string sent_message = "";
+				glm::vec2 current_pos = dots.at(current_command_index);
+				sent_message += "stepperx:" + ofToString(current_pos.x) + "y:" + ofToString(current_pos.y);
+
+				ofLogNotice("onSerialBuffer") << "current index: " << current_command_index;
+				ofLogNotice("onSerialBuffer") << "sent:     " << sent_message;
+				ofLogNotice("onSerialBuffer") << "received: " << received_command;
+
+				// if arduino received the same message that we sent then send the next message
+				if (received_command == sent_message){
+					ofLogNotice("onSerialBuffer") << "all good";
+					send_current_command(++current_command_index);
+				}
+				else {
+					ofLogError("onSerialBuffer") << "we received a different message than the sent one";
+				}
+			}
+			else {
+				ofLogNotice("onSerialBuffer") << "sent all commands!";
+				current_command_index = 0;
+			}
 		}
 	}
 }

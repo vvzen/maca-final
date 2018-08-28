@@ -8,62 +8,92 @@ void ofApp::setup() {
 
 	ofSetLogLevel(OF_LOG_VERBOSE);
 
-	homed = false;
-
 	// set the logging to a file
-	//ofLogToFile("paintball.log");
-
-	// load input image
-	input_image.load("test-camsize.jpg");
-	input_image.setImageType(OF_IMAGE_GRAYSCALE);
+	// ofLogToFile("paintball.log");
 	
+	// save start time
+	start_time = std::chrono::steady_clock::now();
+
+	// init vars
+	draw_dots = false;
+	start_button_pressed = false;
+	button_pressed_time = 0;
+
+	// setup PS3 eye camera
+	video_grabber.setDeviceID(0);
+	video_grabber.initGrabber(cam_width, cam_height);
+
 	// connect to the 2 arduinos
 	init_serial_devices(cnc_device);
 
 	current_command_index = 0;
 
 	dots_fbo.allocate(cam_width, cam_height, GL_RGBA, 8);
-
-	// filter the image
-	run_coherent_line_drawing(input_image, output_image, dots_fbo);
+	input_image.allocate(cam_width, cam_height, OF_IMAGE_GRAYSCALE);
 }
 
 //--------------------------------------------------------------
 void ofApp::update(){
-
-	// wait 5 seconds before sending the homing message
-	if ((int) ofGetElapsedTimef() < SERIAL_INITIAL_DELAY_TIME+1){
-		int elapsed_time = (int) ofGetElapsedTimef();
-		ofLogNotice() << "elapsed time: " << elapsed_time;
-
-		if (elapsed_time == SERIAL_INITIAL_DELAY_TIME && !homed){
-			ofLogNotice() << "sending home";
-			
-			ofxOscMessage osc_message;
-    		osc_message.setAddress("/home");
-    		osc_message.addIntArg(1);
-
-			send_osc_bundle(osc_message, cnc_device, 1024);
-
-			homed = true;
-		}
+	
+	// update PS3 eye camera
+	video_grabber.update();
+	if (video_grabber.isFrameNew() && !draw_dots){
+		ofPixels & grabber_pixels = video_grabber.getPixels();
+		input_image.setFromPixels(grabber_pixels);
+		input_image.setImageType(OF_IMAGE_GRAYSCALE);
 	}
+
+	// save the time when the button is pressed
+	if (start_button_pressed){
+
+		button_pressed_time = (int) ofGetElapsedTimef();
+		ofLogNotice() << "button pressed at: " << button_pressed_time << " seconds";
+	
+		int elapsed_seconds = (int) ofGetElapsedTimef();
+
+		while (elapsed_seconds < button_pressed_time + SERIAL_INITIAL_DELAY_TIME){
+			ofLogVerbose() << "elapsed time: " << elapsed_seconds;
+			elapsed_seconds = (int) ofGetElapsedTimef();
+		}
+
+		ofLogNotice() << "sending home";
+			
+		ofxOscMessage osc_message;
+		osc_message.setAddress("/home");
+		osc_message.addIntArg(1);
+
+		send_osc_bundle(osc_message, cnc_device, 1024);
+
+		draw_dots = true;
+	}
+
+	start_button_pressed = false;
 }
 
 //--------------------------------------------------------------
 void ofApp::draw(){
 
 	ofBackground(ofColor::white);
-	
-	dots_fbo.draw(0, 0);
+
+	if (!draw_dots){
+		input_image.draw(0, 0);
+	}
+	else {
+		//output_image.draw(0, 0);
+		dots_fbo.draw(0, 0);
+	}
 
 	ofDrawBitmapStringHighlight("Coherent line drawing", 10, 20);
 	ofDrawBitmapStringHighlight("Number of dots: " + ofToString(dots.size()), 10, 35);
 }
 
 //--------------------------------------------------------------
-void ofApp::keyPressed(int k){
+void ofApp::keyPressed(int key){
 
+	if (key == ' '){
+		start_button_pressed = true;
+		run_coherent_line_drawing(input_image, output_image, dots_fbo);
+	}
 }
 
 //--------------------------------------------------------------
@@ -276,9 +306,20 @@ void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs &args){
 					ofLogError("onSerialBuffer") << "we received a different message than the sent one";
 				}
 			}
+			// END of the painting
 			else {
 				ofLogNotice("onSerialBuffer") << "sent all commands!";
 				current_command_index = 0;
+
+				// get elapsed time
+				auto end_time = std::chrono::steady_clock::now();
+				auto elapsed_micros = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+				
+				int elapsed_seconds = (elapsed_micros / 1000000);
+				int elapsed_minutes = elapsed_seconds / 60;
+				ofLogNotice() << "elapsed time: " << elapsed_minutes << ":" << elapsed_seconds % 60;
+
+				std::exit(0);
 			}
 		}
 	}

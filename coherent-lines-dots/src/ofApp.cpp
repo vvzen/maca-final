@@ -43,7 +43,7 @@ void ofApp::update(){
 		input_image.setImageType(OF_IMAGE_GRAYSCALE);
 	}
 
-	// save the time when the button is pressed
+	// Save the time when the button is pressed
 	if (start_button_pressed){
 
 		button_pressed_time = (int) ofGetElapsedTimef();
@@ -52,7 +52,7 @@ void ofApp::update(){
 		int elapsed_seconds = (int) ofGetElapsedTimef();
 
 		while (elapsed_seconds < button_pressed_time + SERIAL_INITIAL_DELAY_TIME){
-			ofLogVerbose() << "elapsed time: " << elapsed_seconds;
+			// ofLogVerbose() << "elapsed time: " << elapsed_seconds;
 			elapsed_seconds = (int) ofGetElapsedTimef();
 		}
 
@@ -159,34 +159,50 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 
 	dots_fbo.begin();
 
+	// Only pick points with this max distance from the center
+	int interest_radius = 200;
+	glm::vec2 center(cam_width / 2, cam_height /2);
+
 	// Sample the pixels from the coherent line image
 	// and add dots if we found a white pixel
 	for (int x = circle_size/2; x < output_image.getWidth(); x+= sampling_size){
 		for (int y = circle_size/2; y < output_image.getHeight(); y+= sampling_size){
-			
-			ofColor c = output_image.getColor(x, y);
 
-			if (c.r == 255){
-				ofSetColor(ofColor::orange);
-				ofDrawCircle(x, y, circle_size);
-				dots.push_back(glm::vec2(round(x * PX_TO_MM_RATIO), round(y * PX_TO_MM_RATIO)));
+			if (ofDist(x, y, center.x, center.y) < interest_radius){
+				ofColor c = output_image.getColor(x, y);
+
+				if (c.r == 255){
+					ofSetColor(ofColor::orange);
+					ofDrawCircle(x, y, circle_size);
+					// map the position from pixels to mm
+					glm::vec2 mapped_pos;
+					mapped_pos.x = ofMap(x, 0, cam_width, 0, MACHINE_X_MAX_POS, true);
+					mapped_pos.y = ofMap(y, 0, cam_height, 0, MACHINE_Y_MAX_POS, true);
+					dots.push_back(glm::vec2(round(mapped_pos.x), round(mapped_pos.y)));
+				}
 			}
 		}
 	}
 
 	dots_fbo.end();
 
-	// just to be sure, sort the points in the vector
-	glm::vec2 origin(0, 0);
-	std::sort(dots.begin(), dots.end(), [origin](const glm::vec2 &lhs, const glm::vec2 &rhs){
-		return ofDist(origin.x, origin.y, lhs.x, lhs.y) < ofDist(origin.x, origin.y, rhs.x, rhs.y);
-	});
+	// TO DO: heuristic approach to TSP!
+
+	// just to be sure, sort the points in the vector from the center
+	// glm::vec2 origin(0, 0);
+	// std::sort(dots.begin(), dots.end(), [origin](const glm::vec2 &lhs, const glm::vec2 &rhs){
+	// 	return ofDist(origin.x, origin.y, lhs.x, lhs.y) < ofDist(origin.x, origin.y, rhs.x, rhs.y);
+	// });
 
 	// for debug, save the points to a csv file
 	ofFile dots_file("dots.csv", ofFile::WriteOnly);
 	for (auto d : dots){
 		dots_file << d.x << ',' << d.y << endl;
 	}
+
+	// just add a final dot on the bottom left corner - the artist signature!
+	float bottom_left_y = ofMap(cam_height, 0, cam_height, 0, MACHINE_Y_MAX_POS, true);
+	dots.push_back(glm::vec2(0, bottom_left_y));
 
 	ofLogNotice("run_coherent_line_drawing()") << "completed";
 }

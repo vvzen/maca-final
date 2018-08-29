@@ -23,8 +23,8 @@ int enable_pins[]       = {31, 47, 10};       // enable pins of the motors
 int switch_pins[]       = {35, 51, 8};    // switch pins for each axis
 
 // just using some vars for a better readability
-const bool RIGHT = false;
-const bool LEFT = true;
+const bool RIGHT = true;
+const bool LEFT = false;
 const bool UP = true;
 const bool DOWN = false;
 
@@ -130,11 +130,11 @@ void on_stepper(OSCMessage& msg){
     message += new_pos[0];
     
     // compute difference to get direction
-    int required_movement = current_pos[0] - new_pos[0];
+    int required_movement = new_pos[0] - current_pos[0];
     // check direction (if + go right, if - go left)
     bool dir = (required_movement >= 0) ? RIGHT : LEFT;
     // move the motor
-    //move_x_motor(abs(required_movement), dir, true);
+    move_x_motor(abs(required_movement), dir, true);
     // update current pos
     current_pos[0] = new_pos[0];
   }
@@ -148,14 +148,14 @@ void on_stepper(OSCMessage& msg){
     // check direction (if + go down, if - go up)
     bool dir = (required_movement >= 0) ? DOWN : UP;
     // move the motor
-    //move_y_motors(abs(required_movement), dir, true);
+    move_y_motors(abs(required_movement), dir, true);
     // update current posh
     current_pos[1] = new_pos[1];
   }
 
   // SHOOT
   delay(100);
-  //shoot_servo();
+  shoot_servo();
   delay(100);
 
   char message_buffer[18];
@@ -171,7 +171,7 @@ void on_stepper(OSCMessage& msg){
 
 void on_home(OSCMessage& msg){
   if (msg.isInt(0)){
-    //home_motors();
+    home_motors();
     serial.send("home", 4);
   }
 }
@@ -198,7 +198,7 @@ void shoot_servo(){
 void move_one_step(int motor_pin){
   digitalWrite(motor_pin, HIGH);
   digitalWrite(motor_pin, LOW);
-  delayMicroseconds(1000);
+  delayMicroseconds(1500);
 }
 
 //////////////// HOMING ////////////////
@@ -220,11 +220,11 @@ void home_motors(){
     if (x_switch_value == true) break;
   }
 
-  // save the new current pos
-  current_pos[0] = 0;
-  
-  // then put it at the center (to balance the weight)
-  move_x_motor(400, true, false);
+  // move it slight to the center
+  move_x_motor(50, RIGHT, false);
+
+  // update pos
+  current_pos[0] = 50;
 
   // finally home the other ones
   while (true){

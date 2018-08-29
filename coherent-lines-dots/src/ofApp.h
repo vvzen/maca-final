@@ -24,24 +24,23 @@ public:
 	bool start_button_pressed;
 
 	// PS3 EYE CAMERA
-	const int cam_width = 640;
+	const int cam_width = 600;
 	const int cam_height = 480;
 	ofVideoGrabber video_grabber;
 
 	// OPENCV
 	void run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &dots_fbo);
-	const float PX_TO_MM_RATIO = 1.25;
 
 	ofImage input_image, output_image;
 	ofFbo dots_fbo;
 	// coherent line drawing parameters
-	int halfw = 6;
-	int smooth_passes = 1;
-	float sigma1 = 4.50; // degree of coherence
-	float sigma2 = 0.95905;
-	float tau = 0.98;
-	int black = -8;
-	int threshold = 164;
+	const int halfw = 6;
+	const int smooth_passes = 1;
+	const float sigma1 = 4.50; // degree of coherence
+	const float sigma2 = 0.95905;
+	const float tau = 0.98;
+	const int black = -8;
+	const int threshold = 164;
 	vector<glm::vec2> dots;
 
 	// SERIAL
@@ -53,6 +52,10 @@ public:
 
 	int button_pressed_time;
 	bool draw_dots;
+	
+	// cnc machine movement boundaries
+	const int MACHINE_X_MAX_POS = 875;
+	const int MACHINE_Y_MAX_POS = 700;
 
 	ofxIO::SLIPPacketSerialDevice cnc_device;
 

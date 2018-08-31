@@ -31,14 +31,15 @@ void ofApp::setup(){
     }
 
     // CURRENTLY STILL TODO: AND WIP
-    // 1. EASY ATTEMPT --> nearest neightbour
+    // 1. EASY ATTEMPT --> nearest neighbour
     // loop through each one of them (O(n**2)) and for each one find the nearest point
     points_nn_path.push_back(points.at(0));
 
-    vector<glm::vec2> nn_visited_points = points;
+    // vector<glm::vec2> nn_visited_points = points;
     vector<glm::vec2> tmp_points = points;
 
-    // Start from the first point
+    /*
+    // 1. Start on an arbitrary vertex as current vertex
     auto p = points.at(0);
     int c = 0;
 
@@ -47,7 +48,7 @@ void ofApp::setup(){
         // Remove current point from the vector so that when finding the distance we don't compare it to itself
         tmp_points.erase(std::remove(tmp_points.begin(), tmp_points.end(), p), tmp_points.end());
 
-        // Find the nearest point to the current point
+        // 2. Find out the shortest edge connecting current vertex and an unvisited vertex V.
         // (sort the points based on their distance from this current point)
         std::sort(tmp_points.begin(), tmp_points.end(), [p](const glm::vec2 &lhs, const glm::vec2 &rhs){
             return ofDist(p.x, p.y, lhs.x, lhs.y) < ofDist(p.x, p.y, rhs.x, rhs.y);
@@ -57,7 +58,7 @@ void ofApp::setup(){
 
         // Check if we already visited this one
         if(std::find(nn_visited_points.begin(), nn_visited_points.end(), closest_p) != v.end()) {
-            /* v contains x */
+            
         } else {
             // make this point the next point
             p = closest_p;
@@ -74,6 +75,49 @@ void ofApp::setup(){
         // ofLogNotice() << "current:  " << ofToString(p);
         // ofLogNotice() << "closest:  " << ofToString(tmp_points.at(0));
         // ofLogNotice() << "farthest: " << ofToString(tmp_points.at(tmp_points.size()-1));
+    }
+    */
+
+    // 1. Start on an arbitrary vertex as current vertex
+    int closest_p_index = 0;
+
+    glm::vec2 p = points.at(closest_p_index);
+
+    // continue while there are still points to visit
+    while (points_nn_path.size() < points.size()-1){
+
+        glm::vec2 p = points.at(closest_p_index);
+
+        ofLogNotice() << " points_nn_path: " << points_nn_path.size() << ", points: " << points.size();
+
+        float min_distance = 20000.0f;
+
+        for (int j = 0; j < points.size(); j++){
+
+            glm::vec2 other_p = points.at(j);
+
+            // check if we already have visited the other p, if so, just skip it
+            if(std::find(points_nn_path.begin(), points_nn_path.end(), other_p) == points_nn_path.end()) {
+                
+                // 2. Find out the shortest edge connecting current vertex and an unvisited vertex V
+                float current_distance = ofDist(p.x, p.y, other_p.x, other_p.y);
+                if (current_distance < min_distance && current_distance > 0){
+
+                    min_distance = current_distance;
+                    // 3. make this point the next point
+                    closest_p_index = j;
+                    // 4. add it to the visited points
+                    points_nn_path.push_back(other_p);
+                }
+            }
+        }
+    }
+
+    // compute distance of nn
+    for (int i = 0; i < points_nn_path.size()-1; i++){
+        auto p = points_nn_path.at(i);
+        auto next_p = points_nn_path.at(i+1);
+        nn_distance += ofDist(p.x, p.y, next_p.x, next_p.y);
     }
 
     glPointSize(4);
@@ -102,7 +146,7 @@ void ofApp::draw(){
     // draw the path among the points
     if (current_algorithm_view == DEFAULT){
         ofDrawBitmapStringHighlight("default", 20, 20);
-        ofDrawBitmapStringHighlight(ofToString(default_distance), 20, 35);
+        ofDrawBitmapStringHighlight("distance: " + ofToString(default_distance), 20, 35);
         for (int i = 0; i < points.size()-1; i++){
             auto p = points.at(i);
             auto next_p = points.at(i+1);
@@ -111,7 +155,7 @@ void ofApp::draw(){
     }
     else if (current_algorithm_view == NEAREST_NEIGHBOUR){
         ofDrawBitmapStringHighlight("nearest neighbour", 20, 20);
-        ofDrawBitmapStringHighlight(ofToString(nn_distance), 20, 35);
+        ofDrawBitmapStringHighlight("distance: " + ofToString(nn_distance), 20, 35);
         for (int i = 0; i < points_nn_path.size()-1; i++){
             auto p = points_nn_path.at(i);
             auto next_p = points_nn_path.at(i+1);
@@ -120,7 +164,7 @@ void ofApp::draw(){
     }
     else if (current_algorithm_view == TSP_GENETIC){
         ofDrawBitmapStringHighlight("tsp genetic", 20, 20);
-        ofDrawBitmapStringHighlight(ofToString(ga_tsp_distance), 20, 35);
+        ofDrawBitmapStringHighlight("distance: " + ofToString(ga_tsp_distance), 20, 35);
         for (int i = 0; i < points_ga_tsp_path.size()-1; i++){
             auto p = points_ga_tsp_path.at(i);
             auto next_p = points_ga_tsp_path.at(i+1);
@@ -204,7 +248,7 @@ int ofApp::solve_tsp(const vector<glm::vec2> & in_points, vector<glm::vec2> & ou
 	
 	// parameters: the graph, population size, generations and mutation rate
 	// optional parameters: show_population
-	Genetic genetic(graph, 10, 1000, 5, false);
+	Genetic genetic(graph, 20, 2000, 10, false);
 
 	const clock_t begin_time = clock(); // gets time
 	genetic.run(); // runs the genetic algorithm

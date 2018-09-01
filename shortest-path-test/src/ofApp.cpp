@@ -5,7 +5,7 @@
 //--------------------------------------------------------------
 void ofApp::setup(){
 
-    current_algorithm_view = 0;
+    current_algorithm_view = 1;
 
 
     // init the distances
@@ -97,6 +97,7 @@ void ofApp::setup(){
             glm::vec2 other_p = points.at(j);
 
             // check if we already have visited the other p, if so, just skip it
+			// NB using this technique, duplicate points will be removed.
             if(std::find(points_nn_path.begin(), points_nn_path.end(), other_p) == points_nn_path.end()) {
                 
                 // 2. Find out the shortest edge connecting current vertex and an unvisited vertex V
@@ -106,11 +107,14 @@ void ofApp::setup(){
                     min_distance = current_distance;
                     // 3. make this point the next point
                     closest_p_index = j;
-                    // 4. add it to the visited points
-                    points_nn_path.push_back(other_p);
+					// but don't add it to the list until we've checked all the points against the first!
                 }
             }
         }
+		// now we can add it to the list of added points:
+		glm::vec2 other_p = points.at(closest_p_index);
+		points_nn_path.push_back(other_p);
+
     }
 
     // compute distance of nn
@@ -159,6 +163,9 @@ void ofApp::draw(){
         for (int i = 0; i < points_nn_path.size()-1; i++){
             auto p = points_nn_path.at(i);
             auto next_p = points_nn_path.at(i+1);
+			
+			ofSetColor(ofColor::fromHsb(ofMap(i,0,points_nn_path.size()-1,0,255),255,255));
+			
             ofDrawLine(p.x, p.y, next_p.x, next_p.y);
         }    
     }

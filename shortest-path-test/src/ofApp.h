@@ -33,4 +33,7 @@ class ofApp : public ofBaseApp{
 
 		// TSP genetic algorithm approach using external library
 		int solve_tsp(const vector<glm::vec2> & in_points, vector<glm::vec2> & out_points);
+
+		// Nearest Neighbour approach for finding best path
+		void solve_nn(const vector<glm::vec2> & in_points, vector<glm::vec2> & out_points);
 };

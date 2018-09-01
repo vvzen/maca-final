@@ -210,7 +210,7 @@ void ofApp::solve_nn(const vector<glm::vec2> & in_points, vector<glm::vec2> & ou
 
         ofLogNotice() << " out_points: " << out_points.size() << ", in_points: " << in_points.size();
 
-        float min_distance = 20000.0f;
+        float min_distance = MAXFLOAT;
 
         for (int j = 0; j < in_points.size(); j++){
 

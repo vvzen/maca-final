@@ -1,4 +1,5 @@
 #include "ofApp.h"
+#include "mbc.h"
 
 // using namespace ofxCv;
 using namespace cv;
@@ -49,6 +50,7 @@ void ofApp::update(){
 		ofPixels & grabber_pixels = video_grabber.getPixels();
 		input_image.setFromPixels(grabber_pixels);
 		input_image.setImageType(OF_IMAGE_GRAYSCALE);
+		input_image.mirror(false, true);
 
 		// track face
         face_tracker.update(ofxCv::toCv(input_image));
@@ -232,10 +234,28 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 	ofLogNotice() << "circle size: " << circle_size;
 	int sampling_size = circle_size;
 
+	// dots_fbo.begin();
+
+	// MBC mbc;
+	// mbc.setup(&output_image, circle_size/2, &dots_fbo, ofColor::orange);
+	// int c = 0;
+	
+	// mbc.generate_all_samples(300);
+
+	// ofLogNotice() << "placed samples: " << mbc.placed_circles.size();
+
+	// for (auto pc : mbc.placed_circles){
+	// 	dots.push_back(glm::vec2(pc.pos.x, pc.pos.y));
+	// }
+
+	// dots_fbo.end();
+
+	
 	dots_fbo.begin();
 
 	// Since I can only load ~300 shots on the gun, for safety reasons I'm constraining the max number of dots
 	int max_dots = 300;
+
 
 	// Sample the pixels from the coherent line image
 	// and add dots if we found a white pixel
@@ -270,6 +290,7 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 	}
 
 	dots_fbo.end();
+	
 
 	// Optimize the path using genetic algorithms
 	ofLogNotice("run_coherent_line_drawing()") << "optimizing path using genetic algorithms";

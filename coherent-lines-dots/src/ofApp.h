@@ -62,7 +62,7 @@ public:
 	// cnc machine movement boundaries
 	const int MACHINE_X_MAX_POS = 800;
 	const int MACHINE_Y_MAX_POS = 900;
-	const int INTEREST_RADIUS = 170;
+	const int INTEREST_RADIUS = 200;
 
 	ofxIO::SLIPPacketSerialDevice cnc_device;
 

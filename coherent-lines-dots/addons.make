@@ -1,4 +1,5 @@
 ofxCv
+ofxFaceTracker
 ofxGui
 ofxIO
 ofxKinect

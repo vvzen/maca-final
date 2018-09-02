@@ -1,5 +1,4 @@
 #include "ofApp.h"
-#include "mbc.h"
 
 // using namespace ofxCv;
 using namespace cv;
@@ -9,11 +8,22 @@ void ofApp::setup() {
 
 	ofSetLogLevel(OF_LOG_VERBOSE);
 
+	face_tracking_rectangle.set(glm::vec2(cam_width/8, cam_height/8), cam_width - cam_width/4, cam_height - cam_height/4);
+
 	// set the logging to a file
 	// ofLogToFile("paintball.log");
+
+	// CAMERA
+	// Load the JSON with the video settings from a configuration file.
+    ofJson config = ofLoadJson("settings.json");
+	// Create a grabber from the JSON
+    video_grabber = ofxPS3EyeGrabber::fromJSON(config);
 	
 	// FACE TRACKING
     face_tracker.setup();
+
+	// DOTS
+	circle_size = ofMap(20, 0, MACHINE_X_MAX_POS, 0, cam_width);
 
 	// save start time
 	start_time = std::chrono::steady_clock::now();
@@ -22,10 +32,6 @@ void ofApp::setup() {
 	draw_dots = false;
 	start_button_pressed = false;
 	button_pressed_time = 0;
-
-	// setup PS3 eye camera
-	video_grabber.setDeviceID(0);
-	video_grabber.initGrabber(cam_width, cam_height);
 
 	// connect to the 2 arduinos
 	init_serial_devices(cnc_device);
@@ -44,10 +50,10 @@ void ofApp::setup() {
 void ofApp::update(){
 	
 	// update PS3 eye camera
-	video_grabber.update();
-	if (video_grabber.isFrameNew() && !draw_dots){
+    video_grabber->update();
+	if (video_grabber->isFrameNew() && !draw_dots){
 
-		ofPixels & grabber_pixels = video_grabber.getPixels();
+		ofPixels & grabber_pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
 		input_image.setFromPixels(grabber_pixels);
 		input_image.setImageType(OF_IMAGE_GRAYSCALE);
 		input_image.mirror(false, true);
@@ -57,6 +63,8 @@ void ofApp::update(){
 
         // update the tracked face position
         tracked_face_position = face_tracker.getPosition();
+
+		//input_image.crop(tracked_face_position.x- INTEREST_RADIUS/2, tracked_face_position.y-INTEREST_RADIUS/2, INTEREST_RADIUS, INTEREST_RADIUS);
 	}
 
 	// Save the time when the button is pressed
@@ -93,19 +101,40 @@ void ofApp::draw(){
 	ofBackground(ofColor::white);
 
 	if (!draw_dots){
-		input_image.draw(0, 0);
+		input_image.draw(0,0);
+
 		ofPushStyle();
 		ofNoFill();
-		ofDrawRectangle(tracked_face_position.x - INTEREST_RADIUS/2, tracked_face_position.y - INTEREST_RADIUS/2, INTEREST_RADIUS, INTEREST_RADIUS);
+		if (ofDist(tracked_face_position.x, tracked_face_position.y, ofGetWidth()/2, ofGetHeight()/2) > FACE_DISTANCE_THRESHOLD){
+			ofDrawBitmapStringHighlight("Please put your face inside the rectangle", 42, 20);
+			ofSetColor(ofColor::red);
+		}
+		else {
+			ofSetColor(ofColor::green);
+		}
+		// ofSetRectMode(OF_RECTMODE_CENTER);
+		// ofDrawRectangle(ofGetWidth()/2, ofGetHeight()/2, cam_width - cam_width/4, cam_height - cam_height/4);
+		ofDrawRectangle(face_tracking_rectangle.x, face_tracking_rectangle.y, face_tracking_rectangle.width, face_tracking_rectangle.height);
 		ofPopStyle();
 	}
 	else {
 		//output_image.draw(0, 0);
 		dots_fbo.draw(0, 0);
+
+		// draw in green the current shot
+		glm::vec2 current_shot = sorted_dots.at(current_command_index);
+
+		current_shot.x = round(ofMap(current_shot.x, 0, MACHINE_X_MAX_POS, face_tracking_rectangle.x, face_tracking_rectangle.width, true));
+		current_shot.y = round(ofMap(current_shot.y, 0, MACHINE_Y_MAX_POS, face_tracking_rectangle.y,  face_tracking_rectangle.height, true));
+		ofPushStyle();
+		ofSetColor(ofColor::green);
+		ofDrawCircle(current_shot.x, current_shot.y, circle_size/2);
+		ofPopStyle();
+
+		ofDrawBitmapStringHighlight("Coherent line drawing", 10, 20);
+		ofDrawBitmapStringHighlight("Number of dots: " + ofToString(sorted_dots.size()), 10, 35);
 	}
 
-	ofDrawBitmapStringHighlight("Coherent line drawing", 10, 20);
-	ofDrawBitmapStringHighlight("Number of dots: " + ofToString(sorted_dots.size()), 10, 35);
 }
 
 //--------------------------------------------------------------
@@ -154,7 +183,8 @@ void ofApp::send_current_command(int i){
 	osc_message.addIntArg(pos.x);
 	osc_message.addIntArg(pos.y);
 
-    ofLogNotice("send_current_command") << "/stepper " << pos.x << " " << pos.y << " - " << current_command_index+1 << "/" << ofToString(sorted_dots.size());
+    ofLogNotice("send_current_command") << "/stepper     " << pos.x << " " << pos.y << " - " << current_command_index+1 << "/" << ofToString(sorted_dots.size());
+    ofLogNotice("send_current_command") << "related dot: " << pos.x << " " << pos.y << " - " << current_command_index+1 << "/" << ofToString(sorted_dots.size());
 
     // check onSerialBuffer() to see what happens after we sent a command
 	send_osc_bundle(osc_message, cnc_device, 1024);
@@ -162,6 +192,60 @@ void ofApp::send_current_command(int i){
 
 //--------------------------------------------------------------
 // TSP
+//--------------------------------------------------------------
+// use nearest neighbours algorithm to find a good path for the cnc
+// @args: 	in_points  --> the points used to compute the path optimization
+// 	  		out_points --> a vector that will be filled with the sorted points
+//--------------------------------------------------------------
+int ofApp::solve_nn(const vector<glm::vec2> & in_points, vector<glm::vec2> & out_points){
+
+    // 1. Start on an arbitrary vertex as current vertex
+    int closest_p_index = 0;
+	float nn_distance = 0.0f;
+
+    // continue while there are still points to visit
+    while (out_points.size() < in_points.size()-1){
+
+        glm::vec2 p = in_points.at(closest_p_index);
+
+        ofLogNotice() << " out_points: " << out_points.size() << ", in_points: " << in_points.size();
+
+        float min_distance = MAXFLOAT;
+
+        for (int j = 0; j < in_points.size(); j++){
+
+            glm::vec2 other_p = in_points.at(j);
+
+            // check if we already have visited the other p, if so, just skip it
+			// NB using this technique, duplicate points will be removed.
+            if(std::find(out_points.begin(), out_points.end(), other_p) == out_points.end()) {
+                
+                // 2. Find out the shortest edge connecting current vertex and an unvisited vertex V
+                float current_distance = ofDist(p.x, p.y, other_p.x, other_p.y);
+                if (current_distance < min_distance && current_distance > 0){
+
+                    min_distance = current_distance;
+                    // 3. make this point the next point
+                    closest_p_index = j;
+					// but don't add it to the list until we've checked all the points against the first!
+                }
+            }
+        }
+		// now we can add it to the list of added points:
+		glm::vec2 other_p = in_points.at(closest_p_index);
+		out_points.push_back(other_p);
+    }
+
+	// compute distance of nn
+    for (int i = 0; i < out_points.size()-1; i++){
+        auto p = out_points.at(i);
+        auto next_p = out_points.at(i+1);
+        nn_distance += ofDist(p.x, p.y, next_p.x, next_p.y);
+    }
+
+	return nn_distance;
+}
+
 //--------------------------------------------------------------
 // use evolutionary algorithms to evolve a good path for the cnc
 // @args: 	in_points  --> the points used to compute the path optimization
@@ -230,32 +314,22 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 	output_image.update();
 	
 	// Draw the dots on their fbo
-	int circle_size = ofMap(20, 0, MACHINE_X_MAX_POS, 0, cam_width);
+	
 	ofLogNotice() << "circle size: " << circle_size;
 	int sampling_size = circle_size;
 
-	// dots_fbo.begin();
-
-	// MBC mbc;
-	// mbc.setup(&output_image, circle_size/2, &dots_fbo, ofColor::orange);
-	// int c = 0;
-	
-	// mbc.generate_all_samples(300);
-
-	// ofLogNotice() << "placed samples: " << mbc.placed_circles.size();
-
-	// for (auto pc : mbc.placed_circles){
-	// 	dots.push_back(glm::vec2(pc.pos.x, pc.pos.y));
-	// }
-
-	// dots_fbo.end();
-
-	
 	dots_fbo.begin();
 
 	// Since I can only load ~300 shots on the gun, for safety reasons I'm constraining the max number of dots
 	int max_dots = 300;
 
+/* 	// FIXME: DEBUGGING
+	dots.push_back(glm::vec2(100, 0));
+	dots.push_back(glm::vec2(200, 0));
+	dots.push_back(glm::vec2(300, 0));
+	dots.push_back(glm::vec2(300, 100));
+	dots.push_back(glm::vec2(300, 200));
+	dots.push_back(glm::vec2(300, 300)); */
 
 	// Sample the pixels from the coherent line image
 	// and add dots if we found a white pixel
@@ -265,7 +339,7 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 			// randomize sampling size
 			// sampling_size = floor(ofRandom(0,6)) ? circle_size * 2 : circle_size;
 			
-			cout << "sampling size: " << sampling_size << endl;
+			//cout << "sampling size: " << sampling_size << endl;
 
 			if (dots.size() < max_dots){
 				if (ofDist(x, y, tracked_face_position.x, tracked_face_position.y) < INTEREST_RADIUS){
@@ -277,8 +351,8 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 						// ofDrawRectangle(x, y, circle_size, circle_size);
 						// map the position from pixels to mm
 						glm::vec2 mapped_pos;
-						mapped_pos.x = ofMap(x, 0, cam_width, 0, MACHINE_X_MAX_POS, true);
-						mapped_pos.y = ofMap(y, 0, cam_height, 0, MACHINE_Y_MAX_POS, true);
+						mapped_pos.x = ofMap(x, face_tracking_rectangle.x, face_tracking_rectangle.width, 0, MACHINE_X_MAX_POS, true);
+						mapped_pos.y = ofMap(y, face_tracking_rectangle.y, face_tracking_rectangle.height, 0, MACHINE_Y_MAX_POS, true);
 						dots.push_back(glm::vec2(round(mapped_pos.x), round(mapped_pos.y)));
 					}
 				}
@@ -289,12 +363,11 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 		}
 	}
 
-	dots_fbo.end();
-	
+	dots_fbo.end();	
 
 	// Optimize the path using genetic algorithms
 	ofLogNotice("run_coherent_line_drawing()") << "optimizing path using genetic algorithms";
-	int overall_path_length = solve_tsp(dots, sorted_dots);
+	int overall_path_length = solve_nn(dots, sorted_dots);
 
 	ofLogNotice("run_coherent_line_drawing") << "overall length of the portrait: " << overall_path_length / 1000 << "m";
 
@@ -402,6 +475,17 @@ void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs &args){
 		if (received_command == "home"){
 			
 			ofLogNotice("onSerialBuffer") << "homing done, starting";
+
+			// FIXME: TODO: every 50 shots reset the home
+			if (current_command_index % 50 == 49){
+				ofLogNotice() << "sending home";
+			
+				ofxOscMessage osc_message;
+				osc_message.setAddress("/home");
+				osc_message.addIntArg(0);
+				send_osc_bundle(osc_message, cnc_device, 1024);
+			}
+
 			// start the painting by sending the values over serial
 			send_current_command(current_command_index);
 		}
@@ -457,6 +541,7 @@ void ofApp::onSerialError(const ofx::IO::SerialBufferErrorEventArgs &args){
 // EXIT
 //--------------------------------------------------------------
 void ofApp::exit(){
+	ofSaveScreen("current_portrait.png");
 	cnc_device.unregisterAllEvents(this);
 	// cam_servo_device.unregisterAllEvents(this);
 }

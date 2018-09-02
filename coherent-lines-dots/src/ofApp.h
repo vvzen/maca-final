@@ -3,6 +3,7 @@
 #include "ofMain.h"
 #include "ofxCv.h"
 #include "ofxSerial.h"
+#include "ofxPS3EyeGrabber.h"
 #include "ofEvents.h"
 #include "ofxOsc.h"
 #include "ofxFaceTracker.h"
@@ -23,16 +24,22 @@ public:
 	// PS3 EYE CAMERA
 	const int cam_width = 426;
 	const int cam_height = 480;
-	ofVideoGrabber video_grabber;
+	// the video grabber for the PS3Eye Cam
+	// a shared_ptr avoids manual allocation of memory (new/delete)
+	// when the reference count of the pointed object reaches 0 memory is freed
+	std::shared_ptr<ofVideoGrabber> video_grabber;
 
 	// FACE TRACKING
 	ofxFaceTracker face_tracker;
 	glm::vec2 tracked_face_position;
 	bool face_detected, update_servo;
-	const int FACE_DISTANCE_THRESHOLD = 10;
+	const int FACE_DISTANCE_THRESHOLD = 70;
+	ofRectangle face_tracking_rectangle;
 
 	// TSP (cnc path optimization)
 	int solve_tsp(const vector<glm::vec2> & in_points, vector<glm::vec2> & out_points);
+	// Nearest Neighbour approach for finding best path
+	int solve_nn(const vector<glm::vec2> & in_points, vector<glm::vec2> & out_points);
 
 	// OPENCV
 	void run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &dots_fbo);
@@ -48,6 +55,7 @@ public:
 	const int black = -8;
 	const int threshold = 100;
 	vector<glm::vec2> dots, sorted_dots;
+	int circle_size;
 
 	// SERIAL
 	const int BAUD_RATE = 9600;
@@ -60,7 +68,8 @@ public:
 	bool draw_dots;
 	
 	// cnc machine movement boundaries
-	const int MACHINE_X_MAX_POS = 800;
+	// const int MACHINE_X_MAX_POS = 800;
+	const int MACHINE_X_MAX_POS = 700; // FIXME: calibrate the x axis 
 	const int MACHINE_Y_MAX_POS = 900;
 	const int INTEREST_RADIUS = 200;
 

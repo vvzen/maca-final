@@ -37,9 +37,9 @@ public:
 	ofRectangle face_tracking_rectangle;
 
 	// TSP (cnc path optimization)
-	int solve_tsp(const vector<glm::vec2> & in_points, vector<glm::vec2> & out_points);
+	// int solve_tsp_with_ga(const vector<glm::vec2> & in_points, vector<glm::vec2> & out_points);
 	// Nearest Neighbour approach for finding best path
-	int solve_nn(const vector<glm::vec2> & in_points, vector<glm::vec2> & out_points);
+	int solve_nn(const vector<glm::mediump_ivec2> & in_points, vector<glm::mediump_ivec2> & out_points);
 
 	// OPENCV
 	void run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &dots_fbo);
@@ -54,7 +54,9 @@ public:
 	const float tau = 0.98;
 	const int black = -8;
 	const int threshold = 100;
-	vector<glm::vec2> dots, sorted_dots;
+	// vector<glm::vec2> dots, sorted_dots;
+	vector<glm::mediump_ivec2> dots, sorted_dots;
+	vector<glm::mediump_ivec2> dots_non_mapped, sorted_dots_non_mapped;
 	int circle_size;
 
 	// SERIAL
@@ -71,7 +73,7 @@ public:
 	// const int MACHINE_X_MAX_POS = 800;
 	const int MACHINE_X_MAX_POS = 700; // FIXME: calibrate the x axis 
 	const int MACHINE_Y_MAX_POS = 900;
-	const int INTEREST_RADIUS = 200;
+	const int INTEREST_RADIUS = 180;
 
 	ofxIO::SLIPPacketSerialDevice cnc_device;
 

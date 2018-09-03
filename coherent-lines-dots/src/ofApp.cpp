@@ -8,7 +8,7 @@ void ofApp::setup() {
 
 	ofSetLogLevel(OF_LOG_VERBOSE);
 
-	face_tracking_rectangle.set(glm::vec2(cam_width/8, cam_height/8), cam_width - cam_width/4, cam_height - cam_height/4);
+	face_tracking_rectangle.set(glm::mediump_ivec2(cam_width/4, cam_height/4), cam_width - cam_width/2, cam_height - cam_height/2);
 
 	// set the logging to a file
 	// ofLogToFile("paintball.log");
@@ -23,7 +23,7 @@ void ofApp::setup() {
     face_tracker.setup();
 
 	// DOTS
-	circle_size = ofMap(20, 0, MACHINE_X_MAX_POS, 0, cam_width);
+	circle_size = ofMap(15, 0, MACHINE_X_MAX_POS, 0, cam_width);
 
 	// save start time
 	start_time = std::chrono::steady_clock::now();
@@ -110,10 +110,9 @@ void ofApp::draw(){
 			ofSetColor(ofColor::red);
 		}
 		else {
+			ofDrawBitmapStringHighlight("Press the red button to take a machine portrait!", 30, 35);
 			ofSetColor(ofColor::green);
 		}
-		// ofSetRectMode(OF_RECTMODE_CENTER);
-		// ofDrawRectangle(ofGetWidth()/2, ofGetHeight()/2, cam_width - cam_width/4, cam_height - cam_height/4);
 		ofDrawRectangle(face_tracking_rectangle.x, face_tracking_rectangle.y, face_tracking_rectangle.width, face_tracking_rectangle.height);
 		ofPopStyle();
 	}
@@ -122,10 +121,7 @@ void ofApp::draw(){
 		dots_fbo.draw(0, 0);
 
 		// draw in green the current shot
-		glm::vec2 current_shot = sorted_dots.at(current_command_index);
-
-		current_shot.x = round(ofMap(current_shot.x, 0, MACHINE_X_MAX_POS, face_tracking_rectangle.x, face_tracking_rectangle.width, true));
-		current_shot.y = round(ofMap(current_shot.y, 0, MACHINE_Y_MAX_POS, face_tracking_rectangle.y,  face_tracking_rectangle.height, true));
+		glm::mediump_ivec2 current_shot = sorted_dots_non_mapped.at(current_command_index);
 		ofPushStyle();
 		ofSetColor(ofColor::green);
 		ofDrawCircle(current_shot.x, current_shot.y, circle_size/2);
@@ -176,7 +172,7 @@ void ofApp::init_serial_devices(ofxIO::SLIPPacketSerialDevice &cnc){
 //--------------------------------------------------------------
 void ofApp::send_current_command(int i){
 
-    glm::vec2 pos = sorted_dots.at(i);
+    glm::mediump_ivec2 pos = sorted_dots.at(i);
 
     ofxOscMessage osc_message;
 	osc_message.setAddress("/stepper");
@@ -184,7 +180,6 @@ void ofApp::send_current_command(int i){
 	osc_message.addIntArg(pos.y);
 
     ofLogNotice("send_current_command") << "/stepper     " << pos.x << " " << pos.y << " - " << current_command_index+1 << "/" << ofToString(sorted_dots.size());
-    ofLogNotice("send_current_command") << "related dot: " << pos.x << " " << pos.y << " - " << current_command_index+1 << "/" << ofToString(sorted_dots.size());
 
     // check onSerialBuffer() to see what happens after we sent a command
 	send_osc_bundle(osc_message, cnc_device, 1024);
@@ -197,7 +192,7 @@ void ofApp::send_current_command(int i){
 // @args: 	in_points  --> the points used to compute the path optimization
 // 	  		out_points --> a vector that will be filled with the sorted points
 //--------------------------------------------------------------
-int ofApp::solve_nn(const vector<glm::vec2> & in_points, vector<glm::vec2> & out_points){
+int ofApp::solve_nn(const vector<glm::mediump_ivec2> & in_points, vector<glm::mediump_ivec2> & out_points){
 
     // 1. Start on an arbitrary vertex as current vertex
     int closest_p_index = 0;
@@ -206,7 +201,7 @@ int ofApp::solve_nn(const vector<glm::vec2> & in_points, vector<glm::vec2> & out
     // continue while there are still points to visit
     while (out_points.size() < in_points.size()-1){
 
-        glm::vec2 p = in_points.at(closest_p_index);
+        glm::mediump_ivec2 p = in_points.at(closest_p_index);
 
         ofLogNotice() << " out_points: " << out_points.size() << ", in_points: " << in_points.size();
 
@@ -214,7 +209,7 @@ int ofApp::solve_nn(const vector<glm::vec2> & in_points, vector<glm::vec2> & out
 
         for (int j = 0; j < in_points.size(); j++){
 
-            glm::vec2 other_p = in_points.at(j);
+            glm::mediump_ivec2 other_p = in_points.at(j);
 
             // check if we already have visited the other p, if so, just skip it
 			// NB using this technique, duplicate points will be removed.
@@ -232,7 +227,7 @@ int ofApp::solve_nn(const vector<glm::vec2> & in_points, vector<glm::vec2> & out
             }
         }
 		// now we can add it to the list of added points:
-		glm::vec2 other_p = in_points.at(closest_p_index);
+		glm::mediump_ivec2 other_p = in_points.at(closest_p_index);
 		out_points.push_back(other_p);
     }
 
@@ -244,53 +239,6 @@ int ofApp::solve_nn(const vector<glm::vec2> & in_points, vector<glm::vec2> & out
     }
 
 	return nn_distance;
-}
-
-//--------------------------------------------------------------
-// use evolutionary algorithms to evolve a good path for the cnc
-// @args: 	in_points  --> the points used to compute the path optimization
-// 	  		out_points --> a vector that will be filled with the sorted points
-//--------------------------------------------------------------
-int ofApp::solve_tsp(const vector<glm::vec2> & in_points, vector<glm::vec2> & out_points){
-
-	// creates the graph, parameters: number of vertexes and initial vertex
-	// TODO: use a smart pointer
-	Graph * graph = new Graph(in_points.size(), 0);
-
-    // for each point compute the distance to every other point
-    for (int i = 0; i < in_points.size(); i++){
-        auto p = in_points.at(i);
-        
-        for (int j = 0; j < in_points.size(); j++){
-            
-            if (i != j){
-                auto next_p = in_points.at(j);
-                int cost = round(ofDist(p.x, p.y, next_p.x, next_p.y));
-                graph->addEdge(i, j, cost);
-            }
-        }
-    }
-	
-	// parameters: the graph, population size, generations and mutation rate
-	// optional parameters: show_population
-	Genetic genetic(graph, 20, 2000, 10, false);
-
-	const clock_t begin_time = clock(); // gets time
-	genetic.run(); // runs the genetic algorithm
-	ofLogNotice() << "Genetic algorithm, elapsed time: " << float(clock () - begin_time) /  CLOCKS_PER_SEC << " seconds"; // shows time in seconds
-    
-    // add the resulting points to the given vector
-    const vector<int>& points_vec = genetic.population[0].first;
-	for(int i = 0; i < graph->V; i++){
-        glm::vec2 p = in_points.at(points_vec.at(i));
-        out_points.push_back(p);
-    }
-
-    // free memory
-    delete graph;
-
-    // return the length of the optimised path
-    return genetic.getCostBestSolution();
 }
 
 //--------------------------------------------------------------
@@ -323,18 +271,19 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 	// Since I can only load ~300 shots on the gun, for safety reasons I'm constraining the max number of dots
 	int max_dots = 300;
 
-/* 	// FIXME: DEBUGGING
-	dots.push_back(glm::vec2(100, 0));
-	dots.push_back(glm::vec2(200, 0));
-	dots.push_back(glm::vec2(300, 0));
-	dots.push_back(glm::vec2(300, 100));
-	dots.push_back(glm::vec2(300, 200));
-	dots.push_back(glm::vec2(300, 300)); */
+	/* // FIXME: DEBUGGING
+	for (int i = 0; i < 20; i++ ){
+		dots.push_back(glm::mediump_ivec2(0, 0));
+		dots.push_back(glm::mediump_ivec2(100, 0));
+	}
+	sorted_dots = dots; */
 
 	// Sample the pixels from the coherent line image
 	// and add dots if we found a white pixel
-	for (int x = circle_size/2; x < output_image.getWidth(); x+= sampling_size){
-		for (int y = circle_size/2; y < output_image.getHeight(); y+= sampling_size){
+	// for (int x = circle_size/2; x < output_image.getWidth(); x+= sampling_size){
+	// 	for (int y = circle_size/2; y < output_image.getHeight(); y+= sampling_size){
+	for (int x = face_tracking_rectangle.x; x < face_tracking_rectangle.width*2; x+= sampling_size){
+		for (int y = face_tracking_rectangle.y; y < face_tracking_rectangle.height*2; y+= sampling_size){
 
 			// randomize sampling size
 			// sampling_size = floor(ofRandom(0,6)) ? circle_size * 2 : circle_size;
@@ -350,10 +299,12 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 						ofDrawCircle(x, y, circle_size/2);
 						// ofDrawRectangle(x, y, circle_size, circle_size);
 						// map the position from pixels to mm
-						glm::vec2 mapped_pos;
-						mapped_pos.x = ofMap(x, face_tracking_rectangle.x, face_tracking_rectangle.width, 0, MACHINE_X_MAX_POS, true);
-						mapped_pos.y = ofMap(y, face_tracking_rectangle.y, face_tracking_rectangle.height, 0, MACHINE_Y_MAX_POS, true);
-						dots.push_back(glm::vec2(round(mapped_pos.x), round(mapped_pos.y)));
+						glm::mediump_ivec2 mapped_pos;
+						mapped_pos.x = ofMap(x, face_tracking_rectangle.x, face_tracking_rectangle.width, 10, MACHINE_X_MAX_POS, true);
+						mapped_pos.y = ofMap(y, face_tracking_rectangle.y, face_tracking_rectangle.height, 10, MACHINE_Y_MAX_POS, true);
+						dots.push_back(glm::mediump_ivec2(int(mapped_pos.x), int(mapped_pos.y)));
+						// also store the dots coordinates without mapping, it will be useful for displaying them later
+						dots_non_mapped.push_back(glm::mediump_ivec2(int(x), int(y));
 					}
 				}
 			}
@@ -365,11 +316,13 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 
 	dots_fbo.end();	
 
-	// Optimize the path using genetic algorithms
-	ofLogNotice("run_coherent_line_drawing()") << "optimizing path using genetic algorithms";
+	// Optimize the path using nearest neighbour
+	ofLogNotice("run_coherent_line_drawing()") << "optimizing path";
 	int overall_path_length = solve_nn(dots, sorted_dots);
-
 	ofLogNotice("run_coherent_line_drawing") << "overall length of the portrait: " << overall_path_length / 1000 << "m";
+	
+	// These dots are just used later for displaying the current dot, but we need to also sort them
+	solve_nn(dots_non_mapped, sorted_dots_non_mapped);
 
 	// for debug, save the points to a csv file
 	ofFile dots_file("dots.csv", ofFile::WriteOnly);
@@ -377,13 +330,12 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 		dots_file << d.x << ',' << d.y << endl;
 	}
 
-	// just add a final dot on the bottom left corner - the artist signature!
+	/* // just add a final dot on the bottom left corner - the artist signature!
 	float bottom_left_y = ofMap(cam_height, 0, cam_height, 0, MACHINE_Y_MAX_POS, true);
-	dots.push_back(glm::vec2(0, bottom_left_y));
+	dots.push_back(glm::mediump_ivec2(0, bottom_left_y)); */
 
+	ofLogNotice("run_coherent_line_drawing()") << "sorted dots size: " << sorted_dots.size();
 	ofLogNotice("run_coherent_line_drawing()") << "completed";
-
-	ofLogNotice("dots size: ") << sorted_dots.size();
 }
 
 //--------------------------------------------------------------
@@ -467,67 +419,67 @@ void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs &args){
 	received_command.erase(std::remove(received_command.begin(), received_command.end(), '\r'), received_command.end());
 	received_command.erase(std::remove(received_command.begin(), received_command.end(), '\0'), received_command.end());
 
-	// filter out the switch debugging messages
-	if (received_command.substr(0, 6) == "switch"){
-		// TODO:
+	if (received_command == "home"){
+		
+		ofLogNotice("onSerialBuffer") << "homing done, starting";
+
+		// FIXME: TODO: every 50 shots reset the home
+		// if (current_command_index % 20 == 19){
+		// 	ofLogNotice() << "sending home";
+		
+		// 	ofxOscMessage osc_message;
+		// 	osc_message.setAddress("/home");
+		// 	osc_message.addIntArg(0);
+		// 	send_osc_bundle(osc_message, cnc_device, 1024);
+		// }
+
+		// start the painting by sending the values over serial
+		send_current_command(current_command_index);
 	}
-	else {
-		if (received_command == "home"){
-			
-			ofLogNotice("onSerialBuffer") << "homing done, starting";
+	else if (received_command.substr(0, 7) == "stepper"){
+		// check if we need to send more messages
+		if (current_command_index <= sorted_dots.size() - 2){
 
-			// FIXME: TODO: every 50 shots reset the home
-			if (current_command_index % 50 == 49){
-				ofLogNotice() << "sending home";
-			
-				ofxOscMessage osc_message;
-				osc_message.setAddress("/home");
-				osc_message.addIntArg(0);
-				send_osc_bundle(osc_message, cnc_device, 1024);
+			// The arduino sends us back a string formatted like that: "stepperx:valuey:value"
+			// so we recreate artificially a similar string and we check if it's equal to the arduino message
+			std::string sent_message = "";
+			glm::mediump_ivec2 current_pos = sorted_dots.at(current_command_index);
+			sent_message += "stepperx:" + ofToString(current_pos.x) + "y:" + ofToString(current_pos.y);
+
+			ofLogNotice("onSerialBuffer") << "sent:     " << sent_message;
+			ofLogNotice("onSerialBuffer") << "received: " << received_command;
+
+			// if arduino received the same message that we sent then send the next message
+			if (received_command == sent_message){
+				ofLogNotice("onSerialBuffer") << "all good";
+				send_current_command(++current_command_index);
 			}
-
-			// start the painting by sending the values over serial
-			send_current_command(current_command_index);
-		}
-		else {
-			// check if we need to send more messages
-			if (current_command_index <= sorted_dots.size() - 2){
-
-				// The arduino sends us back a string formatted like that: "stepperx:valuey:value"
-				// so we recreate artificially a similar string and we check if it's equal to the arduino message
-				std::string sent_message = "";
-				glm::vec2 current_pos = sorted_dots.at(current_command_index);
-				sent_message += "stepperx:" + ofToString(current_pos.x) + "y:" + ofToString(current_pos.y);
-
-				ofLogNotice("onSerialBuffer") << "current index: " << current_command_index;
-				ofLogNotice("onSerialBuffer") << "sent:     " << sent_message;
-				ofLogNotice("onSerialBuffer") << "received: " << received_command;
-
-				// if arduino received the same message that we sent then send the next message
-				if (received_command == sent_message){
-					ofLogNotice("onSerialBuffer") << "all good";
-					send_current_command(++current_command_index);
-				}
-				else {
-					ofLogError("onSerialBuffer") << "we received a different message than the sent one";
-				}
-			}
-			// END of the painting
 			else {
-				ofLogNotice("onSerialBuffer") << "sent all commands!";
-				current_command_index = 0;
-
-				// get elapsed time
-				auto end_time = std::chrono::steady_clock::now();
-				auto elapsed_micros = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
-				
-				int elapsed_seconds = (elapsed_micros / 1000000);
-				int elapsed_minutes = elapsed_seconds / 60;
-				ofLogNotice() << "elapsed time: " << elapsed_minutes << ":" << elapsed_seconds % 60;
-
-				std::exit(0);
+				ofLogError("onSerialBuffer") << "we received a different message than the sent one";
 			}
 		}
+		// END of the painting
+		else {
+			ofLogNotice("onSerialBuffer") << "sent all commands!";
+			current_command_index = 0;
+
+			// get elapsed time
+			auto end_time = std::chrono::steady_clock::now();
+			auto elapsed_micros = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+			
+			int elapsed_seconds = (elapsed_micros / 1000000);
+			int elapsed_minutes = elapsed_seconds / 60;
+			ofLogNotice() << "elapsed time: " << elapsed_minutes << ":" << elapsed_seconds % 60;
+
+			std::exit(0);
+		}
+	}
+	else if (received_command.substr(0, 7) == "reqmove"){
+
+	}
+	// filter out the switch debugging messages
+	else if (received_command.substr(0, 6) == "switch"){
+		// TODO:
 	}
 }
 

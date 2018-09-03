@@ -106,11 +106,11 @@ void ofApp::draw(){
 		ofPushStyle();
 		ofNoFill();
 		if (ofDist(tracked_face_position.x, tracked_face_position.y, ofGetWidth()/2, ofGetHeight()/2) > FACE_DISTANCE_THRESHOLD){
-			ofDrawBitmapStringHighlight("Please put your face inside the rectangle", 42, 20);
+			ofDrawBitmapStringHighlight("Please put your face inside the rectangle", 36, 35);
 			ofSetColor(ofColor::red);
 		}
 		else {
-			ofDrawBitmapStringHighlight("Press the red button to take a machine portrait!", 30, 35);
+			ofDrawBitmapStringHighlight("Press the red button to take a machine portrait!", 24, 35);
 			ofSetColor(ofColor::green);
 		}
 		ofDrawRectangle(face_tracking_rectangle.x, face_tracking_rectangle.y, face_tracking_rectangle.width, face_tracking_rectangle.height);
@@ -121,10 +121,14 @@ void ofApp::draw(){
 		dots_fbo.draw(0, 0);
 
 		// draw in green the current shot
-		glm::mediump_ivec2 current_shot = sorted_dots_non_mapped.at(current_command_index);
+		glm::mediump_ivec2 current_pos = sorted_dots.at(current_command_index);
+		glm::mediump_ivec2 mapped_pos;
+		mapped_pos.x = ofMap(current_pos.x, 10, MACHINE_X_MAX_POS, face_tracking_rectangle.x, face_tracking_rectangle.width, true);
+		mapped_pos.y = ofMap(current_pos.y, 10, MACHINE_Y_MAX_POS, face_tracking_rectangle.y, face_tracking_rectangle.height, true);
+		// mapped_pos.y = ofMap(current_pos.y, face_tracking_rectangle.y, face_tracking_rectangle.height, 10, MACHINE_Y_MAX_POS, true);
 		ofPushStyle();
 		ofSetColor(ofColor::green);
-		ofDrawCircle(current_shot.x, current_shot.y, circle_size/2);
+		ofDrawCircle(mapped_pos.x, mapped_pos.y, circle_size/2);
 		ofPopStyle();
 
 		ofDrawBitmapStringHighlight("Coherent line drawing", 10, 20);
@@ -296,15 +300,13 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 
 					if (c.r == 255){
 						ofSetColor(ofColor::orange);
-						ofDrawCircle(x, y, circle_size/2);
+						ofDrawCircle((int) x, (int) y, circle_size/2);
 						// ofDrawRectangle(x, y, circle_size, circle_size);
 						// map the position from pixels to mm
 						glm::mediump_ivec2 mapped_pos;
 						mapped_pos.x = ofMap(x, face_tracking_rectangle.x, face_tracking_rectangle.width, 10, MACHINE_X_MAX_POS, true);
 						mapped_pos.y = ofMap(y, face_tracking_rectangle.y, face_tracking_rectangle.height, 10, MACHINE_Y_MAX_POS, true);
 						dots.push_back(glm::mediump_ivec2(int(mapped_pos.x), int(mapped_pos.y)));
-						// also store the dots coordinates without mapping, it will be useful for displaying them later
-						dots_non_mapped.push_back(glm::mediump_ivec2(int(x), int(y));
 					}
 				}
 			}
@@ -320,13 +322,14 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 	ofLogNotice("run_coherent_line_drawing()") << "optimizing path";
 	int overall_path_length = solve_nn(dots, sorted_dots);
 	ofLogNotice("run_coherent_line_drawing") << "overall length of the portrait: " << overall_path_length / 1000 << "m";
-	
-	// These dots are just used later for displaying the current dot, but we need to also sort them
-	solve_nn(dots_non_mapped, sorted_dots_non_mapped);
 
 	// for debug, save the points to a csv file
-	ofFile dots_file("dots.csv", ofFile::WriteOnly);
+	ofFile sorted_dots_file("sorted_dots.csv", ofFile::WriteOnly);
 	for (auto d : sorted_dots){
+		sorted_dots_file << d.x << ',' << d.y << endl;
+	}
+	ofFile dots_file("dots.csv", ofFile::WriteOnly);
+	for (auto d : dots){
 		dots_file << d.x << ',' << d.y << endl;
 	}
 

@@ -22,7 +22,7 @@ public:
 	bool start_button_pressed;
 
 	// PS3 EYE CAMERA
-	const int cam_width = 426;
+	const int cam_width = 408;
 	const int cam_height = 480;
 	// the video grabber for the PS3Eye Cam
 	// a shared_ptr avoids manual allocation of memory (new/delete)
@@ -56,7 +56,6 @@ public:
 	const int threshold = 100;
 	// vector<glm::vec2> dots, sorted_dots;
 	vector<glm::mediump_ivec2> dots, sorted_dots;
-	vector<glm::mediump_ivec2> dots_non_mapped, sorted_dots_non_mapped;
 	int circle_size;
 
 	// SERIAL
@@ -71,8 +70,8 @@ public:
 	
 	// cnc machine movement boundaries
 	// const int MACHINE_X_MAX_POS = 800;
-	const int MACHINE_X_MAX_POS = 700; // FIXME: calibrate the x axis 
-	const int MACHINE_Y_MAX_POS = 900;
+	const int MACHINE_X_MAX_POS = 680; // FIXME: calibrate the x axis 
+	const int MACHINE_Y_MAX_POS = 800;
 	const int INTEREST_RADIUS = 180;
 
 	ofxIO::SLIPPacketSerialDevice cnc_device;

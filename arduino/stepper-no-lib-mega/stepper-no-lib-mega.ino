@@ -15,7 +15,7 @@ const int SERVO_HOME_POS = 90;
 
 // MOTORS
 // these arrays contain the values for the three motors.
-// motor 1 (y1), motor 2 (y2) and motor 3 (x1) respectively
+// motor 1 (y1, left), motor 2 (y2, right) and motor 3 (x1) respectively
 const int NUM_MOTORS = 3;
 int dir_pins[]          = {23, 39, 2};    // direction pins of the motors
 int step_pins[]         = {27, 43, 4};    // step pins of the motors
@@ -32,8 +32,14 @@ const bool DOWN = false;
 int current_pos[2];
 
 const int STEPS_PER_ROTATION = 200;
-// FIXME: with the current pulley I get a decimal amount of steps per mm, which is not good
 const int STEPS_PER_MM = 5; // see compute_linear_distance_from_steps.py
+const int Y_AXIS_LIMIT = 1100;
+
+// TIMING
+unsigned long current_millis = 0;
+unsigned long prev_step_millis= 0;
+// 500 is the only number that can be used
+unsigned long MICROS_BETWEEN_STEPS = 500;
 
 void setup() {
 
@@ -61,16 +67,16 @@ void setup() {
   serial.setPacketHandler(&on_packet_received);
   serial.begin(9600);
 
-  // set the current pos to a negative number so we know we're not home
-  current_pos[0] = -1;
-  current_pos[1] = -1;
+  // these values will be change as soon as we home
+  current_pos[0] = 0;
+  current_pos[1] = 0;
 }
 
 void loop() {
 
   // keep servo at the home position
   servo.write(SERVO_HOME_POS);
-  delay(15);
+  //delay(15);
   
   // read any incoming serial data (see on_packet_received() )
   serial.update();
@@ -132,7 +138,7 @@ void on_stepper(OSCMessage& msg){
     // compute difference to get direction
     int required_movement = new_pos[0] - current_pos[0];
     // check direction (if + go right, if - go left)
-    bool dir = (required_movement >= 0) ? RIGHT : LEFT;
+    bool dir = (required_movement > 0) ? RIGHT : LEFT;
     // move the motor
     move_x_motor(abs(required_movement), dir, true);
     // update current pos
@@ -146,7 +152,7 @@ void on_stepper(OSCMessage& msg){
     // compute difference to get direction
     int required_movement = new_pos[1] - current_pos[1];
     // check direction (if + go down, if - go up)
-    bool dir = (required_movement >= 0) ? DOWN : UP;
+    bool dir = (required_movement > 0) ? DOWN : UP;
     // move the motor
     move_y_motors(abs(required_movement), dir, true);
     // update current posh
@@ -154,9 +160,9 @@ void on_stepper(OSCMessage& msg){
   }
 
   // SHOOT
-  delay(100);
+  delay(300);
   shoot_servo();
-  delay(100);
+  delay(300);
 
   char message_buffer[18];
   // fill the buffer with the \r char in order to avoid garbage
@@ -172,23 +178,8 @@ void on_stepper(OSCMessage& msg){
 void on_home(OSCMessage& msg){
   if (msg.isInt(0)){
     home_motors();
-    serial.send("home", 4);
-  }
-}
-
-//////////////////////////////////////////
-///////////// SERVO TRIGGER //////////////
-//////////////////////////////////////////
-void shoot_servo(){
-  // shoot
-  for (int i = SERVO_HOME_POS; i < SERVO_SHOOT_POS; i--){
-    servo.write(i);
-    delay(10);
-  }
-  // and come back home
-  for (int i = SERVO_SHOOT_POS; i < SERVO_HOME_POS; i++){
-    servo.write(i);
-    delay(10);
+    // log back home only if requested
+    if(msg.getInt(0) == 1) serial.send("home", 4);
   }
 }
 
@@ -198,8 +189,19 @@ void shoot_servo(){
 void move_one_step(int motor_pin){
   digitalWrite(motor_pin, HIGH);
   digitalWrite(motor_pin, LOW);
-  delayMicroseconds(1500);
+  delayMicroseconds(MICROS_BETWEEN_STEPS);
 }
+
+/*
+void move_one_step(int motor_pin){
+  
+  if (current_millis - prev_step_millis >= MILLIS_BETWEEN_STEPS) {
+    prev_step_millis += MILLIS_BETWEEN_STEPS;
+    digitalWrite(motor_pin, HIGH);
+    digitalWrite(motor_pin, LOW);
+  }
+}
+*/
 
 //////////////// HOMING ////////////////
 void home_motors(){
@@ -221,17 +223,24 @@ void home_motors(){
   }
 
   // move it slight to the center
-  move_x_motor(50, RIGHT, false);
+  move_x_motor(100, RIGHT, false);
 
   // update pos
-  current_pos[0] = 50;
+  current_pos[0] = 100;
 
   // finally home the other ones
+
+  int y_movement = 0;
+  
   while (true){
       
     // when the switch is true it means we're home  
     int y1_switch_value = digitalRead(switch_pins[0]);
     int y2_switch_value = digitalRead(switch_pins[1]);
+
+    // slow down the motors when I reach the top of the cnc
+    // in order to get things in the right order
+    if (y_movement > Y_AXIS_LIMIT * STEPS_PER_MM) delay(2);
 
     // move forward first y motor
     if (y1_switch_value == 0) move_one_step(step_pins[0]);
@@ -241,6 +250,8 @@ void home_motors(){
 
     // exit condition: when they're both three true
     if (y1_switch_value == true && y2_switch_value == true) break;
+
+    y_movement++;
   }
   
   // set motors direction down
@@ -248,7 +259,7 @@ void home_motors(){
   digitalWrite(dir_pins[1], HIGH);
 
   // move y down a little bit
-  move_y_motors(50, DOWN, false);
+  move_y_motors(10, DOWN, false);
 
   // save the new current pos
   current_pos[1] = 0;
@@ -308,6 +319,49 @@ void move_y_motors(int amount, bool dir, bool check){
       move_one_step(step_pins[1]);
     }
   }
+}
+
+/////////// MOVE Y RIGHT STEPPER //////////
+// @amount --> movement in mm
+// @dir    --> true for up, false for down
+// @check  --> if you need to check the end stops
+void move_y_right_motor(int amount, bool dir, bool check){
+
+  // change direction
+  if (dir){
+    digitalWrite(dir_pins[1], LOW);
+  }
+  else {
+    digitalWrite(dir_pins[1], HIGH);
+  }
+
+  // move
+  for (int i = 0; i < amount * STEPS_PER_MM; i++){
+    // if user told us to check the switch, do it
+    if (check){
+      if (digitalRead(switch_pins[1]) == 0) move_one_step(step_pins[1]);
+    }
+    else {
+      move_one_step(step_pins[1]);
+    }
+  }
+}
+
+//////////////////////////////////////////
+///////////// SERVO TRIGGER //////////////
+//////////////////////////////////////////
+void shoot_servo(){
+  // shoot
+  for (int i = SERVO_HOME_POS; i < SERVO_SHOOT_POS; i--){
+    servo.write(i);
+    delay(10);
+  }
+  // and come back home
+  for (int i = SERVO_SHOOT_POS; i < SERVO_HOME_POS; i++){
+    servo.write(i);
+    delay(10);
+  }
+  
 }
 
 // for DEBUGGING

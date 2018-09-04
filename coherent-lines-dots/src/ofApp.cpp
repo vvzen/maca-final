@@ -17,7 +17,10 @@ void ofApp::setup() {
 	// Load the JSON with the video settings from a configuration file.
     ofJson config = ofLoadJson("settings.json");
 	// Create a grabber from the JSON
-    video_grabber = ofxPS3EyeGrabber::fromJSON(config);
+    // video_grabber = ofxPS3EyeGrabber::fromJSON(config);
+    video_grabber.setDeviceID(0);
+	video_grabber.initGrabber(cam_width, cam_height);
+	ofSetVerticalSync(true);
 	
 	// FACE TRACKING
     face_tracker.setup();
@@ -32,11 +35,11 @@ void ofApp::setup() {
 	draw_dots = false;
 	start_button_pressed = false;
 	button_pressed_time = 0;
+	current_command_index = 0;
 
 	// connect to the 2 arduinos
 	init_serial_devices(cnc_device);
 
-	current_command_index = 0;
 
 	dots_fbo.allocate(cam_width, cam_height, GL_RGBA, 8);
 	input_image.allocate(cam_width, cam_height, OF_IMAGE_GRAYSCALE);
@@ -50,10 +53,13 @@ void ofApp::setup() {
 void ofApp::update(){
 	
 	// update PS3 eye camera
-    video_grabber->update();
-	if (video_grabber->isFrameNew() && !draw_dots){
+    // video_grabber->update();
+	// if (video_grabber->isFrameNew() && !draw_dots){
+    video_grabber.update();
+	if (video_grabber.isFrameNew() && !draw_dots){
 
-		ofPixels & grabber_pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
+		// ofPixels & grabber_pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
+		ofPixels & grabber_pixels = video_grabber.getPixels();
 		input_image.setFromPixels(grabber_pixels);
 		input_image.setImageType(OF_IMAGE_GRAYSCALE);
 		input_image.mirror(false, true);
@@ -118,17 +124,19 @@ void ofApp::draw(){
 	}
 	else {
 		//output_image.draw(0, 0);
-		dots_fbo.draw(0, 0);
+		//dots_fbo.draw(0, 0);
+		// FIXME: draw the dots instead of the fbo
+		ofPushStyle();
+		ofSetColor(ofColor::orange);
+		ofFill();
+		for (auto dot : dots){
+			ofDrawCircle(dot.x, dot.y, circle_size/2);
+		}
 
 		// draw in green the current shot
 		glm::mediump_ivec2 current_pos = sorted_dots.at(current_command_index);
-		glm::mediump_ivec2 mapped_pos;
-		mapped_pos.x = ofMap(current_pos.x, 10, MACHINE_X_MAX_POS, face_tracking_rectangle.x, face_tracking_rectangle.width, true);
-		mapped_pos.y = ofMap(current_pos.y, 10, MACHINE_Y_MAX_POS, face_tracking_rectangle.y, face_tracking_rectangle.height, true);
-		// mapped_pos.y = ofMap(current_pos.y, face_tracking_rectangle.y, face_tracking_rectangle.height, 10, MACHINE_Y_MAX_POS, true);
-		ofPushStyle();
 		ofSetColor(ofColor::green);
-		ofDrawCircle(mapped_pos.x, mapped_pos.y, circle_size/2);
+		ofDrawCircle(current_pos.x, current_pos.y, circle_size/2);
 		ofPopStyle();
 
 		ofDrawBitmapStringHighlight("Coherent line drawing", 10, 20);
@@ -233,6 +241,9 @@ int ofApp::solve_nn(const vector<glm::mediump_ivec2> & in_points, vector<glm::me
 		// now we can add it to the list of added points:
 		glm::mediump_ivec2 other_p = in_points.at(closest_p_index);
 		out_points.push_back(other_p);
+
+		// save the two indices in the map
+		dots_index_map[closest_p_index] = out_points.size()-1;
     }
 
 	// compute distance of nn
@@ -240,6 +251,12 @@ int ofApp::solve_nn(const vector<glm::mediump_ivec2> & in_points, vector<glm::me
         auto p = out_points.at(i);
         auto next_p = out_points.at(i+1);
         nn_distance += ofDist(p.x, p.y, next_p.x, next_p.y);
+    }
+
+	// FIXME:
+	ofLogNotice() << "dots index map: ";
+	for (const auto &pair : dots_index_map) {
+        ofLogNotice() << pair.first << " " << pair.second;
     }
 
 	return nn_distance;
@@ -295,18 +312,21 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 			//cout << "sampling size: " << sampling_size << endl;
 
 			if (dots.size() < max_dots){
-				if (ofDist(x, y, tracked_face_position.x, tracked_face_position.y) < INTEREST_RADIUS){
+				// if (ofDist(x, y, tracked_face_position.x, tracked_face_position.y) < INTEREST_RADIUS){
+				if (ofDist(x, y, ofGetWidth()/2, ofGetHeight()/2) < INTEREST_RADIUS){
 					ofColor c = output_image.getColor(x, y);
 
 					if (c.r == 255){
-						ofSetColor(ofColor::orange);
-						ofDrawCircle((int) x, (int) y, circle_size/2);
+						//FIXME:
+						//ofSetColor(ofColor::orange);
+						//ofDrawCircle((int) x, (int) y, circle_size/2);
 						// ofDrawRectangle(x, y, circle_size, circle_size);
 						// map the position from pixels to mm
 						glm::mediump_ivec2 mapped_pos;
 						mapped_pos.x = ofMap(x, face_tracking_rectangle.x, face_tracking_rectangle.width, 10, MACHINE_X_MAX_POS, true);
 						mapped_pos.y = ofMap(y, face_tracking_rectangle.y, face_tracking_rectangle.height, 10, MACHINE_Y_MAX_POS, true);
-						dots.push_back(glm::mediump_ivec2(int(mapped_pos.x), int(mapped_pos.y)));
+						// dots.push_back(glm::mediump_ivec2(int(mapped_pos.x), int(mapped_pos.y)));
+						dots.push_back(glm::mediump_ivec2(x, y));
 					}
 				}
 			}
@@ -455,7 +475,8 @@ void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs &args){
 			// if arduino received the same message that we sent then send the next message
 			if (received_command == sent_message){
 				ofLogNotice("onSerialBuffer") << "all good";
-				send_current_command(++current_command_index);
+				current_command_index++;
+				send_current_command(current_command_index);
 			}
 			else {
 				ofLogError("onSerialBuffer") << "we received a different message than the sent one";

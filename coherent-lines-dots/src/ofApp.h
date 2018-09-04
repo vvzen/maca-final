@@ -9,6 +9,7 @@
 #include "ofxFaceTracker.h"
 #include <chrono>
 #include "tsp.h" // for solving tsp using a genetic algorithm, thanks to: https://github.com/marcoscastro/tsp_genetic
+#include <map>
 
 class ofApp : public ofBaseApp{
 public:
@@ -27,7 +28,8 @@ public:
 	// the video grabber for the PS3Eye Cam
 	// a shared_ptr avoids manual allocation of memory (new/delete)
 	// when the reference count of the pointed object reaches 0 memory is freed
-	std::shared_ptr<ofVideoGrabber> video_grabber;
+	// std::shared_ptr<ofVideoGrabber> video_grabber;
+	ofVideoGrabber video_grabber;
 
 	// FACE TRACKING
 	ofxFaceTracker face_tracker;
@@ -56,6 +58,7 @@ public:
 	const int threshold = 100;
 	// vector<glm::vec2> dots, sorted_dots;
 	vector<glm::mediump_ivec2> dots, sorted_dots;
+	map<int, int> dots_index_map; // input_point, output_point
 	int circle_size;
 
 	// SERIAL

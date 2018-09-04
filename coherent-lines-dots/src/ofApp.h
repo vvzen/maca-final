@@ -58,7 +58,6 @@ public:
 	const int threshold = 100;
 	// vector<glm::vec2> dots, sorted_dots;
 	vector<glm::mediump_ivec2> dots, sorted_dots;
-	map<int, int> dots_index_map; // input_point, output_point
 	int circle_size;
 
 	// SERIAL
@@ -73,9 +72,14 @@ public:
 	
 	// cnc machine movement boundaries
 	// const int MACHINE_X_MAX_POS = 800;
+	const int MACHINE_X_MIN_POS = 0;
 	const int MACHINE_X_MAX_POS = 680; // FIXME: calibrate the x axis 
+	const int MACHINE_Y_MIN_POS = 0;
 	const int MACHINE_Y_MAX_POS = 800;
 	const int INTEREST_RADIUS = 180;
+	const int STEPS_PER_MM = 5;
+	const double SECONDS_BETWEEN_STEPS = 0.0005;
+	string estimated_elapsed_time, real_elapsed_time;
 
 	ofxIO::SLIPPacketSerialDevice cnc_device;
 

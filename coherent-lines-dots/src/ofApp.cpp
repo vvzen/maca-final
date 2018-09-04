@@ -36,6 +36,8 @@ void ofApp::setup() {
 	start_button_pressed = false;
 	button_pressed_time = 0;
 	current_command_index = 0;
+	estimated_elapsed_time = "";
+	real_elapsed_time = "";
 
 	// connect to the 2 arduinos
 	init_serial_devices(cnc_device);
@@ -123,18 +125,11 @@ void ofApp::draw(){
 		ofPopStyle();
 	}
 	else {
-		//output_image.draw(0, 0);
-		//dots_fbo.draw(0, 0);
-		// FIXME: draw the dots instead of the fbo
+		dots_fbo.draw(0, 0);
 		ofPushStyle();
-		ofSetColor(ofColor::orange);
-		ofFill();
-		for (auto dot : dots){
-			ofDrawCircle(dot.x, dot.y, circle_size/2);
-		}
-
 		// draw in green the current shot
 		glm::mediump_ivec2 current_pos = sorted_dots.at(current_command_index);
+		ofFill();
 		ofSetColor(ofColor::green);
 		ofDrawCircle(current_pos.x, current_pos.y, circle_size/2);
 		ofPopStyle();
@@ -185,13 +180,19 @@ void ofApp::init_serial_devices(ofxIO::SLIPPacketSerialDevice &cnc){
 void ofApp::send_current_command(int i){
 
     glm::mediump_ivec2 pos = sorted_dots.at(i);
+	// map the position from pixels to mm
+    glm::mediump_ivec2 mapped_pos(
+		ofMap(pos.x, face_tracking_rectangle.x, face_tracking_rectangle.width * 2, 10, MACHINE_X_MAX_POS, true),
+		ofMap(pos.y, face_tracking_rectangle.y, face_tracking_rectangle.height * 2, 10, MACHINE_Y_MAX_POS, true)
+	);
+    // glm::mediump_ivec2 mapped_pos(pos.x * 2, pos.y * 2);
 
     ofxOscMessage osc_message;
 	osc_message.setAddress("/stepper");
-	osc_message.addIntArg(pos.x);
-	osc_message.addIntArg(pos.y);
+	osc_message.addIntArg(mapped_pos.x);
+	osc_message.addIntArg(mapped_pos.y);
 
-    ofLogNotice("send_current_command") << "/stepper     " << pos.x << " " << pos.y << " - " << current_command_index+1 << "/" << ofToString(sorted_dots.size());
+    ofLogNotice("send_current_command") << "/stepper " << mapped_pos.x << " " << mapped_pos.y << " - " << current_command_index+1 << "/" << ofToString(sorted_dots.size());
 
     // check onSerialBuffer() to see what happens after we sent a command
 	send_osc_bundle(osc_message, cnc_device, 1024);
@@ -215,7 +216,7 @@ int ofApp::solve_nn(const vector<glm::mediump_ivec2> & in_points, vector<glm::me
 
         glm::mediump_ivec2 p = in_points.at(closest_p_index);
 
-        ofLogNotice() << " out_points: " << out_points.size() << ", in_points: " << in_points.size();
+        // ofLogNotice() << " out_points: " << out_points.size() << ", in_points: " << in_points.size();
 
         float min_distance = MAXFLOAT;
 
@@ -241,9 +242,6 @@ int ofApp::solve_nn(const vector<glm::mediump_ivec2> & in_points, vector<glm::me
 		// now we can add it to the list of added points:
 		glm::mediump_ivec2 other_p = in_points.at(closest_p_index);
 		out_points.push_back(other_p);
-
-		// save the two indices in the map
-		dots_index_map[closest_p_index] = out_points.size()-1;
     }
 
 	// compute distance of nn
@@ -251,12 +249,6 @@ int ofApp::solve_nn(const vector<glm::mediump_ivec2> & in_points, vector<glm::me
         auto p = out_points.at(i);
         auto next_p = out_points.at(i+1);
         nn_distance += ofDist(p.x, p.y, next_p.x, next_p.y);
-    }
-
-	// FIXME:
-	ofLogNotice() << "dots index map: ";
-	for (const auto &pair : dots_index_map) {
-        ofLogNotice() << pair.first << " " << pair.second;
     }
 
 	return nn_distance;
@@ -303,13 +295,8 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 	// and add dots if we found a white pixel
 	// for (int x = circle_size/2; x < output_image.getWidth(); x+= sampling_size){
 	// 	for (int y = circle_size/2; y < output_image.getHeight(); y+= sampling_size){
-	for (int x = face_tracking_rectangle.x; x < face_tracking_rectangle.width*2; x+= sampling_size){
-		for (int y = face_tracking_rectangle.y; y < face_tracking_rectangle.height*2; y+= sampling_size){
-
-			// randomize sampling size
-			// sampling_size = floor(ofRandom(0,6)) ? circle_size * 2 : circle_size;
-			
-			//cout << "sampling size: " << sampling_size << endl;
+	for (int x = face_tracking_rectangle.x; x < face_tracking_rectangle.width * 2; x+= sampling_size){
+		for (int y = face_tracking_rectangle.y; y < face_tracking_rectangle.height * 2; y+= sampling_size){
 
 			if (dots.size() < max_dots){
 				// if (ofDist(x, y, tracked_face_position.x, tracked_face_position.y) < INTEREST_RADIUS){
@@ -317,15 +304,9 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 					ofColor c = output_image.getColor(x, y);
 
 					if (c.r == 255){
-						//FIXME:
-						//ofSetColor(ofColor::orange);
-						//ofDrawCircle((int) x, (int) y, circle_size/2);
+						ofSetColor(ofColor::orange);
+						ofDrawCircle((int) x, (int) y, circle_size/2);
 						// ofDrawRectangle(x, y, circle_size, circle_size);
-						// map the position from pixels to mm
-						glm::mediump_ivec2 mapped_pos;
-						mapped_pos.x = ofMap(x, face_tracking_rectangle.x, face_tracking_rectangle.width, 10, MACHINE_X_MAX_POS, true);
-						mapped_pos.y = ofMap(y, face_tracking_rectangle.y, face_tracking_rectangle.height, 10, MACHINE_Y_MAX_POS, true);
-						// dots.push_back(glm::mediump_ivec2(int(mapped_pos.x), int(mapped_pos.y)));
 						dots.push_back(glm::mediump_ivec2(x, y));
 					}
 				}
@@ -342,6 +323,10 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 	ofLogNotice("run_coherent_line_drawing()") << "optimizing path";
 	int overall_path_length = solve_nn(dots, sorted_dots);
 	ofLogNotice("run_coherent_line_drawing") << "overall length of the portrait: " << overall_path_length / 1000 << "m";
+	int estimated_seconds = (overall_path_length * STEPS_PER_MM * SECONDS_BETWEEN_STEPS);
+	int estimated_minutes = estimated_seconds / 60;
+	estimated_elapsed_time = ofToString(estimated_minutes) + ":" + ofToString(estimated_seconds % 60);
+	ofLogNotice("run_coherent_line_drawing") << "estimated time (m:s) --> " << estimated_elapsed_time;
 
 	// for debug, save the points to a csv file
 	ofFile sorted_dots_file("sorted_dots.csv", ofFile::WriteOnly);
@@ -467,7 +452,15 @@ void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs &args){
 			// so we recreate artificially a similar string and we check if it's equal to the arduino message
 			std::string sent_message = "";
 			glm::mediump_ivec2 current_pos = sorted_dots.at(current_command_index);
-			sent_message += "stepperx:" + ofToString(current_pos.x) + "y:" + ofToString(current_pos.y);
+
+			// map back the position from mm to pixels
+			// glm::mediump_ivec2 current_pos_mapped(current_pos.x * 2, current_pos.y * 2);
+			glm::mediump_ivec2 mapped_pos(
+				ofMap(current_pos.x, face_tracking_rectangle.x, face_tracking_rectangle.width * 2, 10, MACHINE_X_MAX_POS, true),
+				ofMap(current_pos.y, face_tracking_rectangle.y, face_tracking_rectangle.height * 2, 10, MACHINE_Y_MAX_POS, true)
+			);
+			
+			sent_message += "stepperx:" + ofToString(mapped_pos.x) + "y:" + ofToString(mapped_pos.y);
 
 			ofLogNotice("onSerialBuffer") << "sent:     " << sent_message;
 			ofLogNotice("onSerialBuffer") << "received: " << received_command;
@@ -493,7 +486,9 @@ void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs &args){
 			
 			int elapsed_seconds = (elapsed_micros / 1000000);
 			int elapsed_minutes = elapsed_seconds / 60;
-			ofLogNotice() << "elapsed time: " << elapsed_minutes << ":" << elapsed_seconds % 60;
+			real_elapsed_time = ofToString(elapsed_minutes) + ":" + ofToString(elapsed_seconds % 60);
+			ofLogNotice() << "estimated time:    " << estimated_elapsed_time;
+			ofLogNotice() << "real elapsed time: " << real_elapsed_time;
 
 			std::exit(0);
 		}

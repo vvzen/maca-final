@@ -182,8 +182,8 @@ void ofApp::send_current_command(int i){
     glm::mediump_ivec2 pos = sorted_dots.at(i);
 	// map the position from pixels to mm
     glm::mediump_ivec2 mapped_pos(
-		ofMap(pos.x, face_tracking_rectangle.x, face_tracking_rectangle.width * 2, 10, MACHINE_X_MAX_POS, true),
-		ofMap(pos.y, face_tracking_rectangle.y, face_tracking_rectangle.height * 2, 10, MACHINE_Y_MAX_POS, true)
+		ofMap(pos.x, face_tracking_rectangle.x, face_tracking_rectangle.width * 2, MACHINE_X_MIN_POS, MACHINE_X_MAX_POS, true),
+		ofMap(pos.y, face_tracking_rectangle.y, face_tracking_rectangle.height * 2, MACHINE_Y_MIN_POS, MACHINE_Y_MAX_POS, true)
 	);
     // glm::mediump_ivec2 mapped_pos(pos.x * 2, pos.y * 2);
 
@@ -284,14 +284,16 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 	// Since I can only load ~300 shots on the gun, for safety reasons I'm constraining the max number of dots
 	int max_dots = 300;
 
-	/* // FIXME: DEBUGGING
-	for (int i = 0; i < 20; i++ ){
-		dots.push_back(glm::mediump_ivec2(0, 0));
-		dots.push_back(glm::mediump_ivec2(100, 0));
+	// FIXME: DEBUGGING
+	for (int i = 0; i < 2; i++ ){
+		dots.push_back(glm::mediump_ivec2(10, 0));
+		dots.push_back(glm::mediump_ivec2(face_tracking_rectangle.width * 2, 100));
 	}
-	sorted_dots = dots; */
+	sorted_dots = dots;
 
-	// Sample the pixels from the coherent line image
+	dots.push_back(glm::mediump_ivec2((face_tracking_rectangle.width * 2) - 10, (face_tracking_rectangle.height * 2) - 10));
+
+	/* // Sample the pixels from the coherent line image
 	// and add dots if we found a white pixel
 	// for (int x = circle_size/2; x < output_image.getWidth(); x+= sampling_size){
 	// 	for (int y = circle_size/2; y < output_image.getHeight(); y+= sampling_size){
@@ -315,18 +317,18 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 				break;
 			}
 		}
-	}
+	} */
 
 	dots_fbo.end();	
 
-	// Optimize the path using nearest neighbour
-	ofLogNotice("run_coherent_line_drawing()") << "optimizing path";
-	int overall_path_length = solve_nn(dots, sorted_dots);
-	ofLogNotice("run_coherent_line_drawing") << "overall length of the portrait: " << overall_path_length / 1000 << "m";
-	int estimated_seconds = (overall_path_length * STEPS_PER_MM * SECONDS_BETWEEN_STEPS);
-	int estimated_minutes = estimated_seconds / 60;
-	estimated_elapsed_time = ofToString(estimated_minutes) + ":" + ofToString(estimated_seconds % 60);
-	ofLogNotice("run_coherent_line_drawing") << "estimated time (m:s) --> " << estimated_elapsed_time;
+	// // Optimize the path using nearest neighbour
+	// ofLogNotice("run_coherent_line_drawing()") << "optimizing path";
+	// int overall_path_length = solve_nn(dots, sorted_dots);
+	// ofLogNotice("run_coherent_line_drawing") << "overall length of the portrait: " << overall_path_length / 1000 << "m";
+	// int estimated_seconds = (overall_path_length * STEPS_PER_MM * SECONDS_BETWEEN_STEPS * MAGIC_NUMBER);
+	// int estimated_minutes = estimated_seconds / 60;
+	// estimated_elapsed_time = ofToString(estimated_minutes) + ":" + ofToString(estimated_seconds % 60);
+	// ofLogNotice("run_coherent_line_drawing") << "estimated time (m:s) --> " << estimated_elapsed_time;
 
 	// for debug, save the points to a csv file
 	ofFile sorted_dots_file("sorted_dots.csv", ofFile::WriteOnly);
@@ -456,8 +458,8 @@ void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs &args){
 			// map back the position from mm to pixels
 			// glm::mediump_ivec2 current_pos_mapped(current_pos.x * 2, current_pos.y * 2);
 			glm::mediump_ivec2 mapped_pos(
-				ofMap(current_pos.x, face_tracking_rectangle.x, face_tracking_rectangle.width * 2, 10, MACHINE_X_MAX_POS, true),
-				ofMap(current_pos.y, face_tracking_rectangle.y, face_tracking_rectangle.height * 2, 10, MACHINE_Y_MAX_POS, true)
+				ofMap(current_pos.x, face_tracking_rectangle.x, face_tracking_rectangle.width * 2, MACHINE_X_MIN_POS, MACHINE_X_MAX_POS, true),
+				ofMap(current_pos.y, face_tracking_rectangle.y, face_tracking_rectangle.height * 2, MACHINE_Y_MIN_POS, MACHINE_Y_MAX_POS, true)
 			);
 			
 			sent_message += "stepperx:" + ofToString(mapped_pos.x) + "y:" + ofToString(mapped_pos.y);

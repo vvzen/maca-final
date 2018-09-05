@@ -11,7 +11,9 @@ PacketSerial_<SLIP, SLIP::END, PACKET_SERIAL_BUFFER_SIZE> serial;
 Servo servo;
 const int SERVO_PIN = 12;
 const int SERVO_SHOOT_POS = 0;
-const int SERVO_HOME_POS = 90;
+const int SERVO_HOME_POS = 55;
+
+int num_shots_made = 0;
 
 // MOTORS
 // these arrays contain the values for the three motors.
@@ -40,6 +42,7 @@ unsigned long current_millis = 0;
 unsigned long prev_step_millis= 0;
 // 500 is the only number that can be used
 unsigned long MICROS_BETWEEN_STEPS = 500;
+unsigned long MICROS_BETWEEN_X_STEPS = 500;
 
 void setup() {
 
@@ -70,13 +73,29 @@ void setup() {
   // these values will be change as soon as we home
   current_pos[0] = 0;
   current_pos[1] = 0;
+
+  // FOR DEBUGGING
+
+//  for (int i = 0; i < 3; i++){
+//    move_x_motor(40, RIGHT, false);
+//    delay(1000);
+//    move_x_motor(40, LEFT, false);
+//    delay(1000);  
+//  }
+  
+  //move_y_motors(100, UP, false);
+  
+  //servo.write(SERVO_SHOOT_POS);
+  //delay(25000);
+  //servo.write(SERVO_HOME_POS);
+  //delay(5000);
 }
 
 void loop() {
 
   // keep servo at the home position
   servo.write(SERVO_HOME_POS);
-  //delay(15);
+  delay(15);
   
   // read any incoming serial data (see on_packet_received() )
   serial.update();
@@ -126,6 +145,7 @@ void on_shoot(OSCMessage& msg){
 void on_stepper(OSCMessage& msg){
 
   String message = "stepperx:";
+//  String debug_message = "reqmovex:";
 
   int new_pos[2];
 
@@ -141,12 +161,14 @@ void on_stepper(OSCMessage& msg){
     bool dir = (required_movement > 0) ? RIGHT : LEFT;
     // move the motor
     move_x_motor(abs(required_movement), dir, true);
+    //debug_message += abs(required_movement);
     // update current pos
     current_pos[0] = new_pos[0];
   }
   // Y
   if (msg.isInt(1)){
     message += "y:";
+    //debug_message += "y:";
     new_pos[1] = msg.getInt(1);
     message += new_pos[1];
     // compute difference to get direction
@@ -155,24 +177,28 @@ void on_stepper(OSCMessage& msg){
     bool dir = (required_movement > 0) ? DOWN : UP;
     // move the motor
     move_y_motors(abs(required_movement), dir, true);
+    //debug_message += abs(required_movement);
     // update current posh
     current_pos[1] = new_pos[1];
   }
 
   // SHOOT
-  delay(300);
+  delay(5000);
   shoot_servo();
-  delay(300);
 
   char message_buffer[18];
+  char debug_message_buffer[18];
   // fill the buffer with the \r char in order to avoid garbage
   // (the \r char is going to be stripped away by the of app)
   for (int i = 0; i < 18; i++){
     message_buffer[i] = '\r';
+//    debug_message_buffer[i] = '\r';
   }
   message.toCharArray(message_buffer, 18);
+//  debug_message.toCharArray(debug_message_buffer, 18);
   // let the of app know we've received stuff
   serial.send(message_buffer, 18);
+//  serial.send(debug_message_buffer, 18);
 }
 
 void on_home(OSCMessage& msg){
@@ -180,6 +206,7 @@ void on_home(OSCMessage& msg){
     home_motors();
     // log back home only if requested
     if(msg.getInt(0) == 1) serial.send("home", 4);
+    num_shots_made = 0;
   }
 }
 
@@ -187,9 +214,29 @@ void on_home(OSCMessage& msg){
 ///////////// MOTORS MOVEMENT ////////////
 //////////////////////////////////////////
 void move_one_step(int motor_pin){
-  digitalWrite(motor_pin, HIGH);
-  digitalWrite(motor_pin, LOW);
-  delayMicroseconds(MICROS_BETWEEN_STEPS);
+  // testing half stepping
+
+  for (int i = 0; i < 2; i++){
+    digitalWrite(motor_pin, HIGH);
+    digitalWrite(motor_pin, LOW);
+    delayMicroseconds(MICROS_BETWEEN_STEPS);
+  }
+  
+  // go slower on the x axis
+//  if (motor_pin == step_pins[2]){
+//    for (int i = 0; i < 2; i++){
+//      digitalWrite(motor_pin, HIGH);
+//      digitalWrite(motor_pin, LOW);
+//      delayMicroseconds(MICROS_BETWEEN_X_STEPS);
+//    }
+//  }
+//  else {
+//    for (int i = 0; i < 2; i++){
+//      digitalWrite(motor_pin, HIGH);
+//      digitalWrite(motor_pin, LOW);
+//      delayMicroseconds(MICROS_BETWEEN_STEPS);
+//    } 
+//  }
 }
 
 /*
@@ -223,10 +270,10 @@ void home_motors(){
   }
 
   // move it slight to the center
-  move_x_motor(100, RIGHT, false);
+  move_x_motor(40, RIGHT, false);
 
   // update pos
-  current_pos[0] = 100;
+  current_pos[0] = 40;
 
   // finally home the other ones
 
@@ -240,7 +287,7 @@ void home_motors(){
 
     // slow down the motors when I reach the top of the cnc
     // in order to get things in the right order
-    if (y_movement > Y_AXIS_LIMIT * STEPS_PER_MM) delay(2);
+    if (y_movement > Y_AXIS_LIMIT * STEPS_PER_MM) delay(1);
 
     // move forward first y motor
     if (y1_switch_value == 0) move_one_step(step_pins[0]);
@@ -264,6 +311,31 @@ void home_motors(){
   // save the new current pos
   current_pos[1] = 0;
 }
+
+///////////// HOME X STEPPER /////////////
+void home_x_motor(){
+
+  // set motors direction left
+  digitalWrite(dir_pins[2], LOW);
+
+  // first home the x
+  while (true){
+    int x_switch_value = digitalRead(switch_pins[2]);
+
+    // move left
+    if (x_switch_value == 0) move_one_step(step_pins[2]);
+
+    // exit condition
+    if (x_switch_value == true) break;
+  }
+
+  // move it slightly to the center
+  move_x_motor(40, RIGHT, false);
+
+  // update pos
+  current_pos[0] = 40;
+}
+
 
 ///////////// MOVE X STEPPER /////////////
 // @amount --> movement in mm
@@ -354,14 +426,19 @@ void shoot_servo(){
   // shoot
   for (int i = SERVO_HOME_POS; i < SERVO_SHOOT_POS; i--){
     servo.write(i);
-    delay(10);
+    delay(20);
   }
   // and come back home
   for (int i = SERVO_SHOOT_POS; i < SERVO_HOME_POS; i++){
     servo.write(i);
     delay(10);
   }
-  
+  num_shots_made++;
+
+  if (num_shots_made > 50){
+    home_motors();
+    num_shots_made = 0;
+  }
 }
 
 // for DEBUGGING
@@ -391,4 +468,3 @@ void test_motors(){
     delay(1000);
   }
 }
-

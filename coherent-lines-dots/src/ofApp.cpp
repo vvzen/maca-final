@@ -17,16 +17,16 @@ void ofApp::setup() {
 	// Load the JSON with the video settings from a configuration file.
     ofJson config = ofLoadJson("settings.json");
 	// Create a grabber from the JSON
-    // video_grabber = ofxPS3EyeGrabber::fromJSON(config);
-    video_grabber.setDeviceID(0);
-	video_grabber.initGrabber(cam_width, cam_height);
+    video_grabber = ofxPS3EyeGrabber::fromJSON(config);
+    // video_grabber.setDeviceID(0);
+	// video_grabber.initGrabber(cam_width, cam_height);
 	ofSetVerticalSync(true);
 	
 	// FACE TRACKING
     face_tracker.setup();
 
 	// DOTS
-	circle_size = ofMap(15, 0, MACHINE_X_MAX_POS, 0, cam_width);
+	circle_size = ofMap(20, MACHINE_X_MIN_POS, MACHINE_X_MAX_POS, 0, cam_width);
 
 	// save start time
 	start_time = std::chrono::steady_clock::now();
@@ -55,16 +55,16 @@ void ofApp::setup() {
 void ofApp::update(){
 	
 	// update PS3 eye camera
-    // video_grabber->update();
-	// if (video_grabber->isFrameNew() && !draw_dots){
-    video_grabber.update();
-	if (video_grabber.isFrameNew() && !draw_dots){
+    video_grabber->update();
+	if (video_grabber->isFrameNew() && !draw_dots){
+    // video_grabber.update();
+	// if (video_grabber.isFrameNew() && !draw_dots){
 
-		// ofPixels & grabber_pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
-		ofPixels & grabber_pixels = video_grabber.getPixels();
+		ofPixels & grabber_pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
+		// ofPixels & grabber_pixels = video_grabber.getPixels();
 		input_image.setFromPixels(grabber_pixels);
 		input_image.setImageType(OF_IMAGE_GRAYSCALE);
-		input_image.mirror(false, true);
+		// input_image.mirror(false, true);
 
 		// track face
         face_tracker.update(ofxCv::toCv(input_image));
@@ -283,56 +283,53 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 
 	// Since I can only load ~300 shots on the gun, for safety reasons I'm constraining the max number of dots
 	int max_dots = 300;
+	int ending_point_x = face_tracking_rectangle.x + face_tracking_rectangle.width;
+	int ending_point_y = face_tracking_rectangle.y + face_tracking_rectangle.height;
 
 	// FIXME: DEBUGGING the 4 corner points
-	for (int i = 0; i < 2; i++ ){
-		dots.push_back(glm::mediump_ivec2(0, 0));
-		dots.push_back(glm::mediump_ivec2(face_tracking_rectangle.width, 100));
-		dots.push_back(glm::mediump_ivec2(face_tracking_rectangle.width, (face_tracking_rectangle.height)));
-		dots.push_back(glm::mediump_ivec2(0, (face_tracking_rectangle.height)));
-	}
-	sorted_dots = dots;
-
-	// for (int x = circle_size/2; x < output_image.getWidth(); x+= sampling_size){
-	// 	for (int y = circle_size/2; y < output_image.getHeight(); y+= sampling_size){
+	// for (int i = 0; i < 2; i++ ){
+	// 	// dots.push_back(glm::mediump_ivec2(0, 0));
+	// 	// dots.push_back(glm::mediump_ivec2(ending_point_x, 0));
+	// 	dots.push_back(glm::mediump_ivec2(ending_point_x, (ending_point_y)));
+	// 	dots.push_back(glm::mediump_ivec2(0, (ending_point_y)));
+	// }
+	// sorted_dots = dots;
 
 	// Sample the pixels from the coherent line image
 	// and add dots if we found a white pixel
-	// int ending_point_x = face_tracking_rectangle.x + face_tracking_rectangle.width;
-	// int ending_point_y = face_tracking_rectangle.y + face_tracking_rectangle.height;
 
-	// for (int x = face_tracking_rectangle.x; x < ending_point_x; x+= sampling_size){
-	// 	for (int y = face_tracking_rectangle.y; y < ending_point_y; y+= sampling_size){
+	for (int x = face_tracking_rectangle.x; x < ending_point_x; x+= sampling_size){
+		for (int y = face_tracking_rectangle.y; y < ending_point_y; y+= sampling_size){
 
-	// 		if (dots.size() < max_dots){
-	// 			// if (ofDist(x, y, tracked_face_position.x, tracked_face_position.y) < INTEREST_RADIUS){
-	// 			if (ofDist(x, y, ofGetWidth()/2, ofGetHeight()/2) < INTEREST_RADIUS){
-	// 				ofColor c = output_image.getColor(x, y);
+			if (dots.size() < max_dots){
+				// if (ofDist(x, y, tracked_face_position.x, tracked_face_position.y) < INTEREST_RADIUS){
+				if (ofDist(x, y, ofGetWidth()/2, ofGetHeight()/2) < INTEREST_RADIUS){
+					ofColor c = output_image.getColor(x, y);
 
-	// 				if (c.r == 255){
-	// 					ofSetColor(ofColor::orange);
-	// 					ofDrawCircle((int) x, (int) y, circle_size/2);
-	// 					// ofDrawRectangle(x, y, circle_size, circle_size);
-	// 					dots.push_back(glm::mediump_ivec2(x, y));
-	// 				}
-	// 			}
-	// 		}
-	// 		else {
-	// 			break;
-	// 		}
-	// 	}
-	// }
+					if (c.r == 255){
+						ofSetColor(ofColor::orange);
+						ofDrawCircle((int) x, (int) y, circle_size/2);
+						// ofDrawRectangle(x, y, circle_size, circle_size);
+						dots.push_back(glm::mediump_ivec2(x, y));
+					}
+				}
+			}
+			else {
+				break;
+			}
+		}
+	}
 
 	dots_fbo.end();	
 
 	// Optimize the path using nearest neighbour
-	// ofLogNotice("run_coherent_line_drawing()") << "optimizing path";
-	// int overall_path_length = solve_nn(dots, sorted_dots);
-	// ofLogNotice("run_coherent_line_drawing") << "overall length of the portrait: " << overall_path_length / 1000 << "m";
-	// int estimated_seconds = (overall_path_length * STEPS_PER_MM * SECONDS_BETWEEN_STEPS * MAGIC_NUMBER);
-	// int estimated_minutes = estimated_seconds / 60;
-	// estimated_elapsed_time = ofToString(estimated_minutes) + ":" + ofToString(estimated_seconds % 60);
-	// ofLogNotice("run_coherent_line_drawing") << "estimated time (m:s) --> " << estimated_elapsed_time;
+	ofLogNotice("run_coherent_line_drawing()") << "optimizing path";
+	int overall_path_length = solve_nn(dots, sorted_dots);
+	ofLogNotice("run_coherent_line_drawing") << "overall length of the portrait: " << overall_path_length / 1000 << "m";
+	int estimated_seconds = (overall_path_length * STEPS_PER_MM * SECONDS_BETWEEN_STEPS * MAGIC_NUMBER);
+	int estimated_minutes = estimated_seconds / 60;
+	estimated_elapsed_time = ofToString(estimated_minutes) + ":" + ofToString(estimated_seconds % 60);
+	ofLogNotice("run_coherent_line_drawing") << "estimated time (m:s) --> " << estimated_elapsed_time;
 
 	// for debug, save the points to a csv file
 	ofFile sorted_dots_file("sorted_dots.csv", ofFile::WriteOnly);

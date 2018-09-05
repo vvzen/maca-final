@@ -26,7 +26,7 @@ void ofApp::setup() {
     face_tracker.setup();
 
 	// DOTS
-	circle_size = ofMap(20, MACHINE_X_MIN_POS, MACHINE_X_MAX_POS, 0, cam_width);
+	circle_size = ofMap(15, MACHINE_X_MIN_POS, MACHINE_X_MAX_POS, 0, cam_width);
 
 	// save start time
 	start_time = std::chrono::steady_clock::now();

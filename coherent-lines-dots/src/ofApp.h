@@ -31,6 +31,8 @@ public:
 	std::shared_ptr<ofVideoGrabber> video_grabber;
 	// ofVideoGrabber video_grabber;
 
+	ofFbo light_fbo;
+
 	// FACE TRACKING
 	ofxFaceTracker face_tracker;
 	glm::vec2 tracked_face_position;

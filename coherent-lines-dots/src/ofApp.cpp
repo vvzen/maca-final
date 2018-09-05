@@ -26,7 +26,7 @@ void ofApp::setup() {
     face_tracker.setup();
 
 	// DOTS
-	circle_size = ofMap(10, MACHINE_X_MIN_POS, MACHINE_X_MAX_POS, 0, cam_width);
+	circle_size = ofMap(16, MACHINE_X_MIN_POS, MACHINE_X_MAX_POS, 0, cam_width);
 
 	// save start time
 	start_time = std::chrono::steady_clock::now();
@@ -44,10 +44,16 @@ void ofApp::setup() {
 
 	dots_fbo.allocate(cam_width, cam_height, GL_RGBA, 8);
 	input_image.allocate(cam_width, cam_height, OF_IMAGE_GRAYSCALE);
+	// light_image.allocate(cam_width, cam_height, OF_IMAGE_GRAYSCALE);
 
 	ofLogNotice() << "input_image: " << input_image.getWidth() << "x" << input_image.getHeight();
 
 	ofLogNotice() << "10mm in pixels: " << ofMap(10, 0, MACHINE_X_MAX_POS, 0, cam_width, true);
+
+	// clear the light fbo
+	// light_fbo.begin();
+	// ofClear(0);
+	// light_fbo.end();
 }
 
 //--------------------------------------------------------------
@@ -56,11 +62,8 @@ void ofApp::update(){
 	// update PS3 eye camera
     video_grabber->update();
 	if (video_grabber->isFrameNew() && !draw_dots){
-    // video_grabber.update();
-	// if (video_grabber.isFrameNew() && !draw_dots){
 
 		ofPixels & grabber_pixels = video_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
-		// ofPixels & grabber_pixels = video_grabber.getPixels();
 		input_image.setFromPixels(grabber_pixels);
 		input_image.setImageType(OF_IMAGE_GRAYSCALE);
 		// input_image.mirror(false, true);
@@ -73,6 +76,21 @@ void ofApp::update(){
 
 		//input_image.crop(tracked_face_position.x- INTEREST_RADIUS/2, tracked_face_position.y-INTEREST_RADIUS/2, INTEREST_RADIUS, INTEREST_RADIUS);
 	}
+
+	// Draw the light!
+    // light_grabber->update();
+	// if (light_grabber->isFrameNew() && !draw_dots){
+		
+
+	// 	// take the image from the videograbber and draw it
+	// 	ofPixels & grabber_pixels = light_grabber->getGrabber<ofxPS3EyeGrabber>()->getPixels();
+	// 	light_image.setFromPixels(grabber_pixels);
+	// 	light_image.setImageType(OF_IMAGE_GRAYSCALE);
+		
+	// 	light_fbo.begin();
+	// 	light_image.draw(0, 0);
+	// 	light_fbo.end();
+	// }
 
 	// Save the time when the button is pressed
 	if (start_button_pressed){
@@ -218,7 +236,7 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 	ofxCv::threshold(output_image, threshold);
 	output_image.update();
 	
-	create_debugging_quad(dots, dots_fbo);
+	// create_debugging_quad(dots, dots_fbo);
 
 	// Draw the dots on their fbo
 	ofLogNotice() << "circle size: " << circle_size;
@@ -226,7 +244,6 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 
 	dots_fbo.begin();
 
-	// Since I can only load ~300 shots on the gun, for safety reasons I'm constraining the max number of dots
 	int max_dots = 300;
 	int ending_point_x = face_tracking_rectangle.x + face_tracking_rectangle.width;
 	int ending_point_y = face_tracking_rectangle.y + face_tracking_rectangle.height;
@@ -242,27 +259,27 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 
 	// Sample the pixels from the coherent line image
 	// and add dots if we find a white pixel
-	// for (int x = face_tracking_rectangle.x; x < ending_point_x; x+= sampling_size){
-	// 	for (int y = face_tracking_rectangle.y; y < ending_point_y; y+= sampling_size){
+	for (int x = face_tracking_rectangle.x; x < ending_point_x; x+= sampling_size){
+		for (int y = face_tracking_rectangle.y; y < ending_point_y; y+= sampling_size){
 
-	// 		if (dots.size() < max_dots){
-	// 			// if (ofDist(x, y, tracked_face_position.x, tracked_face_position.y) < INTEREST_RADIUS){
-	// 			if (ofDist(x, y, ofGetWidth()/2, ofGetHeight()/2) < INTEREST_RADIUS){
-	// 				ofColor c = output_image.getColor(x, y);
+			if (dots.size() < max_dots){
+				// if (ofDist(x, y, tracked_face_position.x, tracked_face_position.y) < INTEREST_RADIUS){
+				if (ofDist(x, y, ofGetWidth()/2, ofGetHeight()/2) < INTEREST_RADIUS){
+					ofColor c = output_image.getColor(x, y);
 
-	// 				if (c.r == 255){
-	// 					ofSetColor(ofColor::orange);
-	// 					ofDrawCircle((int) x, (int) y, circle_size/2);
-	// 					// ofDrawRectangle(x, y, circle_size, circle_size);
-	// 					dots.push_back(glm::mediump_ivec2(x, y));
-	// 				}
-	// 			}
-	// 		}
-	// 		else {
-	// 			break;
-	// 		}
-	// 	}
-	// }
+					if (c.r == 255){
+						ofSetColor(ofColor::orange);
+						ofDrawCircle((int) x, (int) y, circle_size/2);
+						// ofDrawRectangle(x, y, circle_size, circle_size);
+						dots.push_back(glm::mediump_ivec2(x, y));
+					}
+				}
+			}
+			else {
+				break;
+			}
+		}
+	}
 
 	dots_fbo.end();	
 

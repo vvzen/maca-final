@@ -182,8 +182,8 @@ void ofApp::send_current_command(int i){
     glm::mediump_ivec2 pos = sorted_dots.at(i);
 	// map the position from pixels to mm
     glm::mediump_ivec2 mapped_pos(
-		ofMap(pos.x, face_tracking_rectangle.x, face_tracking_rectangle.width * 2, MACHINE_X_MIN_POS, MACHINE_X_MAX_POS, true),
-		ofMap(pos.y, face_tracking_rectangle.y, face_tracking_rectangle.height * 2, MACHINE_Y_MIN_POS, MACHINE_Y_MAX_POS, true)
+		ofMap(pos.x, face_tracking_rectangle.x, face_tracking_rectangle.x + face_tracking_rectangle.width, MACHINE_X_MIN_POS, MACHINE_X_MAX_POS, true),
+		ofMap(pos.y, face_tracking_rectangle.y, face_tracking_rectangle.y + face_tracking_rectangle.height, MACHINE_Y_MIN_POS, MACHINE_Y_MAX_POS, true)
 	);
     // glm::mediump_ivec2 mapped_pos(pos.x * 2, pos.y * 2);
 
@@ -284,44 +284,48 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 	// Since I can only load ~300 shots on the gun, for safety reasons I'm constraining the max number of dots
 	int max_dots = 300;
 
-	// FIXME: DEBUGGING
+	// FIXME: DEBUGGING the 4 corner points
 	for (int i = 0; i < 2; i++ ){
-		dots.push_back(glm::mediump_ivec2(10, 0));
-		dots.push_back(glm::mediump_ivec2(face_tracking_rectangle.width * 2, 100));
+		dots.push_back(glm::mediump_ivec2(0, 0));
+		dots.push_back(glm::mediump_ivec2(face_tracking_rectangle.width, 100));
+		dots.push_back(glm::mediump_ivec2(face_tracking_rectangle.width, (face_tracking_rectangle.height)));
+		dots.push_back(glm::mediump_ivec2(0, (face_tracking_rectangle.height)));
 	}
 	sorted_dots = dots;
 
-	dots.push_back(glm::mediump_ivec2((face_tracking_rectangle.width * 2) - 10, (face_tracking_rectangle.height * 2) - 10));
-
-	/* // Sample the pixels from the coherent line image
-	// and add dots if we found a white pixel
 	// for (int x = circle_size/2; x < output_image.getWidth(); x+= sampling_size){
 	// 	for (int y = circle_size/2; y < output_image.getHeight(); y+= sampling_size){
-	for (int x = face_tracking_rectangle.x; x < face_tracking_rectangle.width * 2; x+= sampling_size){
-		for (int y = face_tracking_rectangle.y; y < face_tracking_rectangle.height * 2; y+= sampling_size){
 
-			if (dots.size() < max_dots){
-				// if (ofDist(x, y, tracked_face_position.x, tracked_face_position.y) < INTEREST_RADIUS){
-				if (ofDist(x, y, ofGetWidth()/2, ofGetHeight()/2) < INTEREST_RADIUS){
-					ofColor c = output_image.getColor(x, y);
+	// Sample the pixels from the coherent line image
+	// and add dots if we found a white pixel
+	// int ending_point_x = face_tracking_rectangle.x + face_tracking_rectangle.width;
+	// int ending_point_y = face_tracking_rectangle.y + face_tracking_rectangle.height;
 
-					if (c.r == 255){
-						ofSetColor(ofColor::orange);
-						ofDrawCircle((int) x, (int) y, circle_size/2);
-						// ofDrawRectangle(x, y, circle_size, circle_size);
-						dots.push_back(glm::mediump_ivec2(x, y));
-					}
-				}
-			}
-			else {
-				break;
-			}
-		}
-	} */
+	// for (int x = face_tracking_rectangle.x; x < ending_point_x; x+= sampling_size){
+	// 	for (int y = face_tracking_rectangle.y; y < ending_point_y; y+= sampling_size){
+
+	// 		if (dots.size() < max_dots){
+	// 			// if (ofDist(x, y, tracked_face_position.x, tracked_face_position.y) < INTEREST_RADIUS){
+	// 			if (ofDist(x, y, ofGetWidth()/2, ofGetHeight()/2) < INTEREST_RADIUS){
+	// 				ofColor c = output_image.getColor(x, y);
+
+	// 				if (c.r == 255){
+	// 					ofSetColor(ofColor::orange);
+	// 					ofDrawCircle((int) x, (int) y, circle_size/2);
+	// 					// ofDrawRectangle(x, y, circle_size, circle_size);
+	// 					dots.push_back(glm::mediump_ivec2(x, y));
+	// 				}
+	// 			}
+	// 		}
+	// 		else {
+	// 			break;
+	// 		}
+	// 	}
+	// }
 
 	dots_fbo.end();	
 
-	// // Optimize the path using nearest neighbour
+	// Optimize the path using nearest neighbour
 	// ofLogNotice("run_coherent_line_drawing()") << "optimizing path";
 	// int overall_path_length = solve_nn(dots, sorted_dots);
 	// ofLogNotice("run_coherent_line_drawing") << "overall length of the portrait: " << overall_path_length / 1000 << "m";
@@ -340,9 +344,9 @@ void ofApp::run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &do
 		dots_file << d.x << ',' << d.y << endl;
 	}
 
-	/* // just add a final dot on the bottom left corner - the artist signature!
-	float bottom_left_y = ofMap(cam_height, 0, cam_height, 0, MACHINE_Y_MAX_POS, true);
-	dots.push_back(glm::mediump_ivec2(0, bottom_left_y)); */
+	// just add a final dot on the bottom left corner - the artist signature!
+	// float bottom_left_y = ofMap(cam_height, 0, cam_height, 0, MACHINE_Y_MAX_POS, true);
+	// dots.push_back(glm::mediump_ivec2(0, bottom_left_y));
 
 	ofLogNotice("run_coherent_line_drawing()") << "sorted dots size: " << sorted_dots.size();
 	ofLogNotice("run_coherent_line_drawing()") << "completed";
@@ -458,8 +462,8 @@ void ofApp::onSerialBuffer(const ofx::IO::SerialBufferEventArgs &args){
 			// map back the position from mm to pixels
 			// glm::mediump_ivec2 current_pos_mapped(current_pos.x * 2, current_pos.y * 2);
 			glm::mediump_ivec2 mapped_pos(
-				ofMap(current_pos.x, face_tracking_rectangle.x, face_tracking_rectangle.width * 2, MACHINE_X_MIN_POS, MACHINE_X_MAX_POS, true),
-				ofMap(current_pos.y, face_tracking_rectangle.y, face_tracking_rectangle.height * 2, MACHINE_Y_MIN_POS, MACHINE_Y_MAX_POS, true)
+				ofMap(current_pos.x, face_tracking_rectangle.x, face_tracking_rectangle.x + face_tracking_rectangle.width, MACHINE_X_MIN_POS, MACHINE_X_MAX_POS, true),
+				ofMap(current_pos.y, face_tracking_rectangle.y, face_tracking_rectangle.y + face_tracking_rectangle.height, MACHINE_Y_MIN_POS, MACHINE_Y_MAX_POS, true)
 			);
 			
 			sent_message += "stepperx:" + ofToString(mapped_pos.x) + "y:" + ofToString(mapped_pos.y);

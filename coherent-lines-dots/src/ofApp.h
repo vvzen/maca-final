@@ -73,9 +73,9 @@ public:
 	// cnc machine movement boundaries
 	// const int MACHINE_X_MAX_POS = 800;
 	const int MACHINE_X_MIN_POS = 10;
-	const int MACHINE_X_MAX_POS = 515; // FIXME: calibrate the x axis 
-	const int MACHINE_Y_MIN_POS = 130;
-	const int MACHINE_Y_MAX_POS = 550;
+	const int MACHINE_X_MAX_POS = 680; // FIXME: calibrate the x axis 
+	const int MACHINE_Y_MIN_POS = 150;
+	const int MACHINE_Y_MAX_POS = 800;
 	const int INTEREST_RADIUS = 180;
 	const int STEPS_PER_MM = 5;
 	const double SECONDS_BETWEEN_STEPS = 0.0005;

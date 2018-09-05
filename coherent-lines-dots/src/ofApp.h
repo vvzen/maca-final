@@ -45,6 +45,7 @@ public:
 
 	// OPENCV
 	void run_coherent_line_drawing(const ofImage &in, ofImage &out, ofFbo &dots_fbo);
+	void create_debugging_quad(vector<glm::mediump_ivec2> & dots, ofFbo & dots_fbo);
 
 	ofImage input_image, output_image;
 	ofFbo dots_fbo;
@@ -70,8 +71,8 @@ public:
 	int button_pressed_time;
 	bool draw_dots;
 	
+	// CNC
 	// cnc machine movement boundaries
-	// const int MACHINE_X_MAX_POS = 800;
 	const int MACHINE_X_MIN_POS = 5;
 	const int MACHINE_X_MAX_POS = (cam_width) + MACHINE_X_MIN_POS; // FIXME: calibrate the x axis 
 	const int MACHINE_Y_MIN_POS = 0;
@@ -80,6 +81,7 @@ public:
 	const int STEPS_PER_MM = 5;
 	const double SECONDS_BETWEEN_STEPS = 0.0005;
 	const float MAGIC_NUMBER = 3.442;
+	const float X_DISTORTION_CORRECTION = 1.25;
 	string estimated_elapsed_time, real_elapsed_time;
 
 	ofxIO::SLIPPacketSerialDevice cnc_device;

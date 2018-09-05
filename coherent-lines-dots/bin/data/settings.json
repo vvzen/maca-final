@@ -1,8 +1,8 @@
 {
   "id": "auto",
   "frame_rate": 60,
-  "width": 640,
-  "height": 480,
+  "width": 500,
+  "height": 450,
   "use_texture": true,
   "pixel_format": "OF_PIXELS_RGB",
   "grabber": {

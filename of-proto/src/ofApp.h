@@ -13,7 +13,6 @@ struct SerialMessage{
     std::string exception;
 };
 
-
 class ofApp : public ofBaseApp{
 
 	public:

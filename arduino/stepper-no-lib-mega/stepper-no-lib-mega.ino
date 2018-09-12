@@ -81,14 +81,8 @@ void setup() {
 //    delay(1000);
 //    move_x_motor(40, LEFT, false);
 //    delay(1000);  
-//  }
-  
-  //move_y_motors(100, UP, false);
-  
-  //servo.write(SERVO_SHOOT_POS);
-  //delay(25000);
-  //servo.write(SERVO_HOME_POS);
-  //delay(5000);
+  //  }
+
 }
 
 void loop() {

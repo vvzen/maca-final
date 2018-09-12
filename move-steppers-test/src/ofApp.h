@@ -24,6 +24,7 @@ class ofApp : public ofBaseApp{
 		ofParameter<int> gui_stepper_y_pos;
 		ofxButton gui_send_move_command;
 		ofxButton gui_send_gethome_command;
+		ofxButton gui_send_gethomex_command;
 		ofxButton gui_shoot_command;
 
 		const int Y_MIN_POS = 0;

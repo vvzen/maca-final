@@ -1,7 +1,7 @@
 #include "ofApp.h"
 #include <sstream>
 
-using namespace ofxCv;
+// using namespace ofxCv;
 
 //--------------------------------------------------------------
 void ofApp::setup(){

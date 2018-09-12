@@ -17,6 +17,7 @@
         "stdexcept": "cpp",
         "typeinfo": "cpp",
         "iosfwd": "cpp",
-        "__locale": "cpp"
+        "__locale": "cpp",
+        "__bit_reference": "cpp"
     }
 }
